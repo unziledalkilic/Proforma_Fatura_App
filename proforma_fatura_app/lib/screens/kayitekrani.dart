@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:math';
 
 void main() {
   runApp(MyApp());
@@ -23,6 +24,242 @@ class MyApp extends StatelessWidget {
 class RegisterScreen extends StatefulWidget {
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
+}
+
+// Güçlü Dalgalanma Efekti Widget'ı
+class AnimatedWaveBackground extends StatefulWidget {
+  final Widget child;
+
+  const AnimatedWaveBackground({Key? key, required this.child})
+      : super(key: key);
+
+  @override
+  _AnimatedWaveBackgroundState createState() => _AnimatedWaveBackgroundState();
+}
+
+class _AnimatedWaveBackgroundState extends State<AnimatedWaveBackground>
+    with TickerProviderStateMixin {
+  late AnimationController _waveController1;
+  late AnimationController _waveController2;
+  late AnimationController _waveController3;
+  late AnimationController _colorController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Farklı hızlarda dalga kontrolcüleri
+    _waveController1 = AnimationController(
+      duration: Duration(seconds: 3),
+      vsync: this,
+    );
+
+    _waveController2 = AnimationController(
+      duration: Duration(seconds: 4),
+      vsync: this,
+    );
+
+    _waveController3 = AnimationController(
+      duration: Duration(seconds: 5),
+      vsync: this,
+    );
+
+    _colorController = AnimationController(
+      duration: Duration(seconds: 8),
+      vsync: this,
+    );
+
+    // Tüm animasyonları başlat
+    _waveController1.repeat();
+    _waveController2.repeat();
+    _waveController3.repeat();
+    _colorController.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _waveController1.dispose();
+    _waveController2.dispose();
+    _waveController3.dispose();
+    _colorController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _waveController1,
+        _waveController2,
+        _waveController3,
+        _colorController,
+      ]),
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(-0.5 + _colorController.value,
+                  -0.5 + _colorController.value * 0.5),
+              radius: 1.5 + _colorController.value * 0.5,
+              colors: [
+                Color.lerp(Color(0xFF1e40af), Color(0xFF3b82f6),
+                    _colorController.value)!,
+                Color.lerp(Color(0xFF3b82f6), Color(0xFF06b6d4),
+                    _colorController.value * 0.8)!,
+                Color.lerp(Color(0xFF06b6d4), Color(0xFF10b981),
+                    _colorController.value * 0.6)!,
+                Color.lerp(Color(0xFF10b981), Color(0xFF1e40af),
+                    _colorController.value * 0.4)!,
+              ],
+              stops: [
+                0.0,
+                0.3 + _colorController.value * 0.2,
+                0.6 + _colorController.value * 0.2,
+                1.0,
+              ],
+            ),
+          ),
+          child: CustomPaint(
+            painter: MultiWavePainter(
+              _waveController1.value,
+              _waveController2.value,
+              _waveController3.value,
+              _colorController.value,
+            ),
+            child: widget.child,
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Çoklu Dalga Çizimi için Custom Painter
+class MultiWavePainter extends CustomPainter {
+  final double wave1;
+  final double wave2;
+  final double wave3;
+  final double colorValue;
+
+  MultiWavePainter(this.wave1, this.wave2, this.wave3, this.colorValue);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Ana dalga (alt kısım)
+    _drawWave(
+      canvas,
+      size,
+      wave1,
+      Color.lerp(
+        Color(0xFF3b82f6).withOpacity(0.3),
+        Color(0xFF10b981).withOpacity(0.4),
+        colorValue,
+      )!,
+      size.height * 0.75,
+      80.0,
+      size.width / 1.5,
+    );
+
+    // İkinci dalga (orta kısım)
+    _drawWave(
+      canvas,
+      size,
+      -wave2 * 1.2,
+      Color.lerp(
+        Color(0xFF06b6d4).withOpacity(0.25),
+        Color(0xFF1e40af).withOpacity(0.35),
+        colorValue,
+      )!,
+      size.height * 0.6,
+      100.0,
+      size.width / 1.8,
+    );
+
+    // Üçüncü dalga (üst kısım)
+    _drawWave(
+      canvas,
+      size,
+      wave3 * 0.8,
+      Color.lerp(
+        Color(0xFF10b981).withOpacity(0.15),
+        Color(0xFF3b82f6).withOpacity(0.25),
+        colorValue,
+      )!,
+      size.height * 0.4,
+      60.0,
+      size.width / 2.2,
+    );
+
+    // Dördüncü dalga (en üst)
+    _drawWave(
+      canvas,
+      size,
+      -wave1 * 1.5,
+      Color.lerp(
+        Color(0xFF1e40af).withOpacity(0.1),
+        Color(0xFF06b6d4).withOpacity(0.2),
+        colorValue,
+      )!,
+      size.height * 0.25,
+      40.0,
+      size.width / 2.5,
+    );
+
+    // Beşinci dalga (çok hafif, üst overlay)
+    _drawWave(
+      canvas,
+      size,
+      wave2 * 2,
+      Color.lerp(
+        Color(0xFF3b82f6).withOpacity(0.05),
+        Color(0xFF10b981).withOpacity(0.15),
+        colorValue,
+      )!,
+      size.height * 0.1,
+      30.0,
+      size.width / 3,
+    );
+  }
+
+  void _drawWave(
+    Canvas canvas,
+    Size size,
+    double animValue,
+    Color color,
+    double baseHeight,
+    double amplitude,
+    double frequency,
+  ) {
+    final paint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = color;
+
+    final path = Path();
+
+    // Dalga başlangıcı
+    path.moveTo(0, baseHeight);
+
+    // Sinüs dalgası çizimi
+    for (double x = 0; x <= size.width; x += 2) {
+      final y = baseHeight +
+          amplitude * sin((x / frequency + animValue * 2 * pi)) +
+          (amplitude * 0.3) *
+              sin((x / (frequency * 0.7) + animValue * 3 * pi)) +
+          (amplitude * 0.2) *
+              cos((x / (frequency * 1.3) + animValue * 1.5 * pi));
+      path.lineTo(x, y);
+    }
+
+    // Dalga sonunu ekrana bağla
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
@@ -50,19 +287,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            stops: [0.0, 0.5, 1.0],
-            colors: [
-              Color(0xFF667eea), // Açık mavi
-              Color(0xFF764ba2), // Mor
-              Color(0xFF667eea), // Tekrar mavi
-            ],
-          ),
-        ),
+      body: AnimatedWaveBackground(
         child: SafeArea(
           child: Column(
             children: [
@@ -106,16 +331,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.white.withOpacity(0.9),
-                  Colors.white.withOpacity(0.7),
+                  Color(0xFF3b82f6), // Güvenilir mavi
+                  Color(0xFF1e40af), // Koyu mavi
                 ],
               ),
               borderRadius: BorderRadius.circular(40),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: Offset(0, 5),
+                  color: Color(0xFF3b82f6).withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: Offset(0, 8),
                 ),
               ],
             ),
@@ -125,38 +350,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF667eea),
+                  color: Colors.white,
+                  letterSpacing: 2,
                 ),
               ),
             ),
           ),
-          SizedBox(height: 16),
-
-          // Başlık
-          Text(
-            'Proforma Fatura',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              shadows: [
-                Shadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Hesap Oluşturun',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.white.withOpacity(0.9),
-              fontWeight: FontWeight.w400,
-            ),
-          ),
+          SizedBox(height: 32),
         ],
       ),
     );
@@ -217,7 +417,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: _isUserRegistration
-                            ? Color(0xFF667eea)
+                            ? Color(0xFF1e40af)
                             : Colors.white,
                       ),
                     ),
@@ -256,7 +456,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Icon(
                       Icons.business_outlined,
                       color: !_isUserRegistration
-                          ? Color(0xFF667eea)
+                          ? Color(0xFF1e40af)
                           : Colors.white,
                       size: 20,
                     ),
@@ -267,7 +467,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: !_isUserRegistration
-                            ? Color(0xFF667eea)
+                            ? Color(0xFF1e40af)
                             : Colors.white,
                       ),
                     ),
@@ -336,7 +536,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _acceptTerms = value!;
                       });
                     },
-                    activeColor: Color(0xFF667eea),
+                    activeColor:
+                        Color(0xFF10b981), // Modern yeşil (başarı rengi)
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -374,13 +575,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onPressed:
                       _isLoading || !_acceptTerms ? null : _handleRegister,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF667eea),
+                    backgroundColor: Color(0xFF1e40af), // Profesyonel koyu mavi
                     disabledBackgroundColor: Colors.grey[300],
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                     elevation: 8,
-                    shadowColor: Color(0xFF667eea).withOpacity(0.4),
+                    shadowColor: Color(0xFF1e40af).withOpacity(0.4),
                   ),
                   child: _isLoading
                       ? Row(
@@ -697,7 +898,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             hintText: hint,
             prefixIcon: Icon(
               icon,
-              color: Color(0xFF667eea),
+              color: Color(0xFF1e40af), // Profesyonel koyu mavi
               size: 22,
             ),
             filled: true,
@@ -712,7 +913,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Color(0xFF667eea), width: 2),
+              borderSide: BorderSide(
+                  color: Color(0xFF3b82f6), width: 2), // Güvenilir mavi
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -751,7 +953,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             hintText: hint,
             prefixIcon: Icon(
               Icons.lock_outlined,
-              color: Color(0xFF667eea),
+              color: Color(0xFF1e40af), // Profesyonel koyu mavi
               size: 22,
             ),
             suffixIcon: IconButton(
@@ -779,7 +981,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Color(0xFF667eea), width: 2),
+              borderSide: BorderSide(
+                  color: Color(0xFF3b82f6), width: 2), // Güvenilir mavi
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
