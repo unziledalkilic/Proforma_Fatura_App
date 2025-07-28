@@ -11,28 +11,18 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # UI
   cupertino_icons: ^1.0.8
   
-  # API istekleri için
+  # Supabase paketleri
+  supabase_flutter: ^2.3.0
+  flutter_dotenv: ^5.1.0
+  
+  # API istekleri için (Supabase ile birlikte kullanılabilir)
   http: ^1.1.0
   
   # Token ve kullanıcı verilerini kaydetmek için
   shared_preferences: ^2.2.2
-  
-  # Tarih ve para formatlaması için
-  intl: ^0.19.0
-  
-  # State management için
-  provider: ^6.1.1
-  
-  # Form validasyonu için
-  flutter_form_builder: ^9.1.1
-  
-  # PDF oluşturma için (proforma fatura)
-  pdf: ^3.10.7
-  
-  # Dosya izinleri için
-  permission_handler: ^11.0.1
 
 dev_dependencies:
   flutter_test:
@@ -41,8 +31,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  # Assets klasörü ekleyelim (logo vs. için)
+  
   assets:
-    - assets/images/
-    - assets/icons/
+    - .env

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'dart:math';
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
+import 'kayitekrani.dart';
+import 'dashboard_screen.dart'; // Ana sayfa import edin
 
 // Güçlü Dalgalanma Efekti Widget'ı
 class AnimatedWaveBackground extends StatefulWidget {
@@ -250,11 +252,13 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  // Supabase servisleri
+  final _authService = AuthService();
+  final _databaseService = DatabaseService();
+
   bool _isLoading = false;
   bool _obscurePassword = true;
-
-  // API Base URL
-  final String baseUrl = 'http://localhost:5000/api';
 
   @override
   void dispose() {
@@ -263,7 +267,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Login API Call
+  // SUPABASE LOGIN
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -272,59 +276,102 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': _emailController.text.trim(),
-          'password': _passwordController.text,
-        }),
+      print('🔐 Giriş işlemi başlatılıyor...');
+      print('📧 Email: ${_emailController.text.trim()}');
+
+      // Supabase ile giriş yap
+      final response = await _authService.signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
       );
 
-      final data = json.decode(response.body);
+      if (response.user != null) {
+        print('✅ Giriş başarılı!');
+        print('🆔 User ID: ${response.user!.id}');
+        print('📧 Email: ${response.user!.email}');
 
-      if (response.statusCode == 200 && data['success']) {
-        // Login başarılı - token'ı kaydet
-        final token = data['data']['token'];
-        final user = data['data']['user'];
+        // Kullanıcı profilini al
+        final userProfile =
+            await _databaseService.getUserProfile(response.user!.id);
 
-        // SharedPreferences ile token'ı kaydet (implement edilmeli)
-        // await _saveToken(token);
+        if (userProfile != null) {
+          print('👤 Kullanıcı profili bulundu: ${userProfile.fullName}');
 
-        // Dashboard'a yönlendir
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Hoş geldiniz, ${user['name']}!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Navigator.pushReplacementNamed(context, '/dashboard');
+          // Başarı mesajı göster
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white),
+                    SizedBox(width: 12),
+                    Text('Hoş geldiniz, ${userProfile.fullName}!'),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+
+            // Ana sayfaya yönlendir
+            Navigator.pushReplacementNamed(context, '/home');
+            // Ya da doğrudan:
+            // Navigator.pushReplacement(
+            //   context,
+            //   MaterialPageRoute(builder: (context) => HomeScreen()),
+            // );
+          }
+        } else {
+          print('❌ Kullanıcı profili bulunamadı');
+          _showErrorMessage('Kullanıcı profili bulunamadı');
         }
       } else {
-        // Login başarısız
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['message'] ?? 'Giriş başarısız'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        print('❌ Giriş başarısız - kullanıcı null');
+        _showErrorMessage('Giriş başarısız');
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bağlantı hatası. Lütfen tekrar deneyin.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      print('❌ Giriş hatası: $e');
+
+      String errorMessage = 'Giriş hatası';
+      if (e.toString().contains('Invalid login credentials')) {
+        errorMessage = 'Email veya şifre hatalı';
+      } else if (e.toString().contains('Email not confirmed')) {
+        errorMessage = 'Email adresinizi doğrulayın';
+      } else if (e.toString().contains('network')) {
+        errorMessage = 'Bağlantı hatası, tekrar deneyin';
       }
+
+      _showErrorMessage(errorMessage);
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showErrorMessage(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 12),
+              Expanded(child: Text(message)),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
     }
   }
 
@@ -431,7 +478,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
                                 decoration: InputDecoration(
-                                  hintText: 'ornek@email.com',
+                                  hintText: 'ahmet.test2023@gmail.com',
                                   prefixIcon: const Icon(
                                     Icons.email_outlined,
                                     color: Color(0xFF1e40af),
@@ -561,6 +608,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: TextButton(
                               onPressed: () {
                                 // Şifre sıfırlama sayfasına git
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        'Şifre sıfırlama özelliği yakında eklenecek'),
+                                    backgroundColor: Colors.blue,
+                                  ),
+                                );
                               },
                               child: const Text(
                                 'Şifremi unuttum',
@@ -592,13 +646,27 @@ class _LoginScreenState extends State<LoginScreen> {
                                     const Color(0xFF1e40af).withOpacity(0.4),
                               ),
                               child: _isLoading
-                                  ? const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
+                                  ? Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'Giriş yapılıyor...',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
                                     )
                                   : const Text(
                                       'Giriş Yap',
@@ -626,8 +694,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               GestureDetector(
                                 onTap: () {
-                                  // Register sayfasına git
-                                  Navigator.pushNamed(context, '/register');
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) => RegisterScreen()),
+                                  );
                                 },
                                 child: const Text(
                                   'Kayıt Ol',
