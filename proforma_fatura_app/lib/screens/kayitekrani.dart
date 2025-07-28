@@ -1,32 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math';
-
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Proforma Fatura - Kayıt',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        fontFamily: 'Roboto',
-      ),
-      home: RegisterScreen(),
-      debugShowCheckedModeBanner: false,
-    );
-  }
-}
+import '../services/auth_service.dart';
+import '../services/database_service.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
 }
 
-// Güçlü Dalgalanma Efekti Widget'ı
+// Dikey Dalgalanma Efekti Widget'ı
 class AnimatedWaveBackground extends StatefulWidget {
   final Widget child;
 
@@ -50,22 +34,22 @@ class _AnimatedWaveBackgroundState extends State<AnimatedWaveBackground>
 
     // Farklı hızlarda dalga kontrolcüleri
     _waveController1 = AnimationController(
-      duration: Duration(seconds: 3),
+      duration: Duration(seconds: 8),
       vsync: this,
     );
 
     _waveController2 = AnimationController(
-      duration: Duration(seconds: 4),
+      duration: Duration(seconds: 12),
       vsync: this,
     );
 
     _waveController3 = AnimationController(
-      duration: Duration(seconds: 5),
+      duration: Duration(seconds: 10),
       vsync: this,
     );
 
     _colorController = AnimationController(
-      duration: Duration(seconds: 8),
+      duration: Duration(seconds: 15),
       vsync: this,
     );
 
@@ -97,10 +81,9 @@ class _AnimatedWaveBackgroundState extends State<AnimatedWaveBackground>
       builder: (context, child) {
         return Container(
           decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(-0.5 + _colorController.value,
-                  -0.5 + _colorController.value * 0.5),
-              radius: 1.5 + _colorController.value * 0.5,
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
               colors: [
                 Color.lerp(Color(0xFF1e40af), Color(0xFF3b82f6),
                     _colorController.value)!,
@@ -111,16 +94,10 @@ class _AnimatedWaveBackgroundState extends State<AnimatedWaveBackground>
                 Color.lerp(Color(0xFF10b981), Color(0xFF1e40af),
                     _colorController.value * 0.4)!,
               ],
-              stops: [
-                0.0,
-                0.3 + _colorController.value * 0.2,
-                0.6 + _colorController.value * 0.2,
-                1.0,
-              ],
             ),
           ),
           child: CustomPaint(
-            painter: MultiWavePainter(
+            painter: VerticalWavePainter(
               _waveController1.value,
               _waveController2.value,
               _waveController3.value,
@@ -134,101 +111,107 @@ class _AnimatedWaveBackgroundState extends State<AnimatedWaveBackground>
   }
 }
 
-// Çoklu Dalga Çizimi için Custom Painter
-class MultiWavePainter extends CustomPainter {
+// Dikey Dalga Çizimi için Custom Painter
+class VerticalWavePainter extends CustomPainter {
   final double wave1;
   final double wave2;
   final double wave3;
   final double colorValue;
 
-  MultiWavePainter(this.wave1, this.wave2, this.wave3, this.colorValue);
+  VerticalWavePainter(this.wave1, this.wave2, this.wave3, this.colorValue);
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Ana dalga (alt kısım)
-    _drawWave(
+    // Sol taraftaki ana dalga
+    _drawVerticalWave(
       canvas,
       size,
       wave1,
       Color.lerp(
-        Color(0xFF3b82f6).withOpacity(0.3),
-        Color(0xFF10b981).withOpacity(0.4),
+        Color(0xFF3b82f6).withOpacity(0.4),
+        Color(0xFF10b981).withOpacity(0.5),
         colorValue,
       )!,
-      size.height * 0.75,
-      80.0,
-      size.width / 1.5,
+      size.width * 0.15, // Sol kenardan uzaklık
+      120.0, // Dalga genişliği
+      size.height / 2.5, // Dalga frekansı
+      true, // Sol taraf
     );
 
-    // İkinci dalga (orta kısım)
-    _drawWave(
+    // Sağ taraftaki dalga
+    _drawVerticalWave(
       canvas,
       size,
-      -wave2 * 1.2,
+      -wave2 * 1.3,
       Color.lerp(
-        Color(0xFF06b6d4).withOpacity(0.25),
-        Color(0xFF1e40af).withOpacity(0.35),
+        Color(0xFF06b6d4).withOpacity(0.35),
+        Color(0xFF1e40af).withOpacity(0.45),
         colorValue,
       )!,
-      size.height * 0.6,
-      100.0,
-      size.width / 1.8,
+      size.width * 0.85, // Sağ kenardan uzaklık
+      100.0, // Dalga genişliği
+      size.height / 3, // Dalga frekansı
+      false, // Sağ taraf
     );
 
-    // Üçüncü dalga (üst kısım)
-    _drawWave(
+    // Ortadaki hafif dalga
+    _drawVerticalWave(
       canvas,
       size,
-      wave3 * 0.8,
+      wave3 * 0.7,
       Color.lerp(
-        Color(0xFF10b981).withOpacity(0.15),
-        Color(0xFF3b82f6).withOpacity(0.25),
+        Color(0xFF10b981).withOpacity(0.25),
+        Color(0xFF3b82f6).withOpacity(0.35),
         colorValue,
       )!,
-      size.height * 0.4,
-      60.0,
-      size.width / 2.2,
+      size.width * 0.45, // Orta
+      80.0, // Dalga genişliği
+      size.height / 3.5, // Dalga frekansı
+      true, // Sol yön
     );
 
-    // Dördüncü dalga (en üst)
-    _drawWave(
+    // İkinci sol dalga (daha küçük)
+    _drawVerticalWave(
       canvas,
       size,
-      -wave1 * 1.5,
+      -wave1 * 1.8,
       Color.lerp(
-        Color(0xFF1e40af).withOpacity(0.1),
-        Color(0xFF06b6d4).withOpacity(0.2),
+        Color(0xFF1e40af).withOpacity(0.2),
+        Color(0xFF06b6d4).withOpacity(0.3),
         colorValue,
       )!,
-      size.height * 0.25,
-      40.0,
-      size.width / 2.5,
+      size.width * 0.05, // Çok sol
+      60.0, // Dalga genişliği
+      size.height / 4, // Dalga frekansı
+      true, // Sol taraf
     );
 
-    // Beşinci dalga (çok hafif, üst overlay)
-    _drawWave(
+    // İkinci sağ dalga (daha küçük)
+    _drawVerticalWave(
       canvas,
       size,
-      wave2 * 2,
+      wave2 * 2.2,
       Color.lerp(
-        Color(0xFF3b82f6).withOpacity(0.05),
-        Color(0xFF10b981).withOpacity(0.15),
+        Color(0xFF3b82f6).withOpacity(0.15),
+        Color(0xFF10b981).withOpacity(0.25),
         colorValue,
       )!,
-      size.height * 0.1,
-      30.0,
-      size.width / 3,
+      size.width * 0.95, // Çok sağ
+      50.0, // Dalga genişliği
+      size.height / 4.5, // Dalga frekansı
+      false, // Sağ taraf
     );
   }
 
-  void _drawWave(
+  void _drawVerticalWave(
     Canvas canvas,
     Size size,
     double animValue,
     Color color,
-    double baseHeight,
+    double baseX,
     double amplitude,
     double frequency,
+    bool isLeft,
   ) {
     final paint = Paint()
       ..style = PaintingStyle.fill
@@ -237,22 +220,32 @@ class MultiWavePainter extends CustomPainter {
     final path = Path();
 
     // Dalga başlangıcı
-    path.moveTo(0, baseHeight);
+    if (isLeft) {
+      path.moveTo(0, 0);
+      path.lineTo(baseX, 0);
+    } else {
+      path.moveTo(size.width, 0);
+      path.lineTo(baseX, 0);
+    }
 
-    // Sinüs dalgası çizimi
-    for (double x = 0; x <= size.width; x += 2) {
-      final y = baseHeight +
-          amplitude * sin((x / frequency + animValue * 2 * pi)) +
-          (amplitude * 0.3) *
-              sin((x / (frequency * 0.7) + animValue * 3 * pi)) +
+    // Dikey sinüs dalgası çizimi
+    for (double y = 0; y <= size.height; y += 3) {
+      final x = baseX +
+          amplitude * sin((y / frequency + animValue * 2 * pi)) +
+          (amplitude * 0.4) *
+              sin((y / (frequency * 0.8) + animValue * 2.5 * pi)) +
           (amplitude * 0.2) *
-              cos((x / (frequency * 1.3) + animValue * 1.5 * pi));
+              cos((y / (frequency * 1.2) + animValue * 1.8 * pi));
       path.lineTo(x, y);
     }
 
     // Dalga sonunu ekrana bağla
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
+    if (isLeft) {
+      path.lineTo(0, size.height);
+    } else {
+      path.lineTo(size.width, size.height);
+      path.lineTo(size.width, 0);
+    }
     path.close();
 
     canvas.drawPath(path, paint);
@@ -265,6 +258,10 @@ class MultiWavePainter extends CustomPainter {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  // Supabase servisleri
+  final _authService = AuthService();
+  final _databaseService = DatabaseService();
+
   // Kullanıcı kaydı controllers
   final _userNameController = TextEditingController();
   final _userSurnameController = TextEditingController();
@@ -272,7 +269,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _userPhoneController = TextEditingController();
   final _userPasswordController = TextEditingController();
 
-  // Şirket kaydı controllers
+  // Şirket kaydı controllers (şimdilik sadeleştirdik)
   final _companyNameController = TextEditingController();
   final _companySicilController = TextEditingController();
   final _companyIbanController = TextEditingController();
@@ -321,13 +318,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildHeader() {
     return Container(
-      padding: EdgeInsets.all(24),
+      padding: EdgeInsets.all(20),
       child: Column(
         children: [
           // Logo
           Container(
-            width: 80,
-            height: 80,
+            width: 70,
+            height: 70,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -335,7 +332,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Color(0xFF1e40af), // Koyu mavi
                 ],
               ),
-              borderRadius: BorderRadius.circular(40),
+              borderRadius: BorderRadius.circular(35),
               boxShadow: [
                 BoxShadow(
                   color: Color(0xFF3b82f6).withOpacity(0.3),
@@ -348,7 +345,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Text(
                 'PF',
                 style: TextStyle(
-                  fontSize: 32,
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                   letterSpacing: 2,
@@ -356,7 +353,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
           ),
-          SizedBox(height: 32),
+          SizedBox(height: 16),
         ],
       ),
     );
@@ -507,16 +504,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Form Başlığı
-              Center(
-                child: Text(
-                  _isUserRegistration
-                      ? 'Kullanıcı Bilgilerinizi Girin'
-                      : 'Şirket Bilgilerinizi Girin',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2D3748),
-                  ),
+              Text(
+                _isUserRegistration
+                    ? 'Kullanıcı Bilgileri'
+                    : 'Şirket Bilgileri',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF2D3748),
                 ),
               ),
               SizedBox(height: 24),
@@ -633,8 +628,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       WidgetSpan(
                         child: GestureDetector(
                           onTap: () {
-                            // Giriş ekranına git
-                            Navigator.pop(context);
+                            // Login ekranına git
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => LoginScreen()),
+                            );
                           },
                           child: Text(
                             'Giriş Yap',
@@ -1012,6 +1011,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
+  // SUPABASE ENTEGRASYONLu KAYIT İŞLEMİ
   void _handleRegister() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -1021,43 +1021,118 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _isLoading = true;
     });
 
-    // Simüle edilmiş kayıt işlemi
-    await Future.delayed(Duration(seconds: 2));
+    try {
+      if (_isUserRegistration) {
+        // 🔥 KULLANICI KAYDI - SUPABASE İLE
+        print('🚀 Kullanıcı kaydı başlatılıyor...');
+        print('📧 Email: ${_userEmailController.text.trim()}');
+        print(
+            '👤 Ad: ${_userNameController.text.trim()} ${_userSurnameController.text.trim()}');
+        print('📱 Telefon: ${_userPhoneController.text.trim()}');
 
-    if (_isUserRegistration) {
-      // Kullanıcı kayıt bilgileri
-      print('=== KULLANICI KAYIT BİLGİLERİ ===');
-      print('Ad: ${_userNameController.text}');
-      print('Soyad: ${_userSurnameController.text}');
-      print('E-posta: ${_userEmailController.text}');
-      print('Telefon: ${_userPhoneController.text}');
-      print('Şifre: ${_userPasswordController.text}');
-      print('================================');
-    } else {
-      // Şirket kayıt bilgileri
-      print('=== ŞİRKET KAYIT BİLGİLERİ ===');
-      print('Şirket Adı: ${_companyNameController.text}');
-      print('Sicil No: ${_companySicilController.text}');
-      print('IBAN: ${_companyIbanController.text}');
-      print('E-posta: ${_companyEmailController.text}');
-      print('Şifre: ${_companyPasswordController.text}');
-      print('================================');
+        final response = await _authService.registerUser(
+          firstName: _userNameController.text.trim(),
+          lastName: _userSurnameController.text.trim(),
+          email: _userEmailController.text.trim(),
+          password: _userPasswordController.text,
+          phone: _userPhoneController.text.trim().isEmpty
+              ? null
+              : _userPhoneController.text.trim(),
+        );
+
+        if (response.user != null) {
+          print('✅ Kullanıcı başarıyla kaydedildi!');
+          print('🆔 User ID: ${response.user!.id}');
+
+          // Veritabanında kaydı kontrol et
+          await _checkUserInDatabase(response.user!.id);
+
+          // Başarı mesajı göster
+          _showSuccessMessage(
+              'Kullanıcı kaydı başarıyla oluşturuldu! Veritabanında kaydınız mevcut.');
+
+          // 3 saniye bekle ve login'e yönlendir
+          await Future.delayed(Duration(seconds: 3));
+
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => LoginScreen()),
+            );
+          }
+        } else {
+          _showErrorMessage('Kullanıcı kaydı oluşturulamadı');
+        }
+      } else {
+        // 🏢 ŞİRKET KAYDI - ŞİMDİLİK CONSOLE'A YAZDIR
+        print('🚀 Şirket kaydı başlatılıyor...');
+        print('🏢 Şirket Adı: ${_companyNameController.text}');
+        print('📄 Sicil No: ${_companySicilController.text}');
+        print('🏦 IBAN: ${_companyIbanController.text}');
+        print('📧 Email: ${_companyEmailController.text}');
+        print('🔐 Şifre: ${_companyPasswordController.text}');
+
+        // Simülasyon
+        await Future.delayed(Duration(seconds: 2));
+
+        _showSuccessMessage('Şirket kaydı başarıyla oluşturuldu! (Simülasyon)');
+
+        await Future.delayed(Duration(seconds: 3));
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => LoginScreen()),
+          );
+        }
+      }
+    } catch (error) {
+      print('❌ Kayıt hatası: $error');
+      _showErrorMessage('Kayıt hatası: ${error.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
+  }
 
-    setState(() {
-      _isLoading = false;
-    });
+  // Veritabanında kullanıcıyı kontrol et
+  Future<void> _checkUserInDatabase(String userId) async {
+    try {
+      print('🔍 Veritabanında kullanıcı kontrol ediliyor...');
 
-    // Başarı mesajı göster
+      // 3 saniye bekle (trigger'ın çalışması için)
+      await Future.delayed(Duration(seconds: 3));
+
+      final profile = await _databaseService.getUserProfile(userId);
+      if (profile != null) {
+        print('✅ VERİTABANINDA KAYIT BULUNDU:');
+        print('   🆔 ID: ${profile.id}');
+        print('   👤 Ad Soyad: ${profile.fullName}');
+        print('   📧 Email: ${profile.email}');
+        print('   📱 Telefon: ${profile.phone ?? 'Yok'}');
+        print('   📅 Oluşturulma: ${profile.createdAt}');
+        print('   ================================');
+      } else {
+        print('❌ Veritabanında profil bulunamadı');
+        throw Exception('Profil oluşturulamadı');
+      }
+    } catch (error) {
+      print('❌ Veritabanı kontrol hatası: $error');
+      throw error;
+    }
+  }
+
+  void _showSuccessMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             Icon(Icons.check_circle, color: Colors.white),
             SizedBox(width: 12),
-            Text(_isUserRegistration
-                ? 'Kullanıcı kaydı başarıyla oluşturuldu!'
-                : 'Şirket kaydı başarıyla oluşturuldu!'),
+            Expanded(child: Text(message)),
           ],
         ),
         backgroundColor: Colors.green,
@@ -1065,6 +1140,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.error, color: Colors.white),
+            SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        duration: Duration(seconds: 4),
       ),
     );
   }
