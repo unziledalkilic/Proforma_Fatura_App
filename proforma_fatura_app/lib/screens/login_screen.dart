@@ -9,8 +9,7 @@ import 'dashboard_screen.dart'; // Ana sayfa import edin
 class AnimatedWaveBackground extends StatefulWidget {
   final Widget child;
 
-  const AnimatedWaveBackground({Key? key, required this.child})
-      : super(key: key);
+  const AnimatedWaveBackground({super.key, required this.child});
 
   @override
   _AnimatedWaveBackgroundState createState() => _AnimatedWaveBackgroundState();
@@ -242,7 +241,7 @@ class MultiWavePainter extends CustomPainter {
 }
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -630,7 +629,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 24),
 
                           // Login Button
-                          Container(
+                          SizedBox(
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(

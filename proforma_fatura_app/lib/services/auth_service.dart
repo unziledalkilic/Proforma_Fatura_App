@@ -96,23 +96,21 @@ class AuthService {
           .eq('email', email)
           .single();
 
-      if (userResponse != null) {
-        print('✅ Kullanıcı bulundu, manuel giriş yapılıyor');
+      print('✅ Kullanıcı bulundu, manuel giriş yapılıyor');
 
-        // Mock response oluştur
-        return AuthResponse(
-          user: User(
-            id: userResponse['id'],
-            appMetadata: {},
-            userMetadata: {},
-            aud: 'authenticated',
-            createdAt: DateTime.now().toIso8601String(),
-            email: email,
-          ),
-          session: null,
-        );
-      }
-
+      // Mock response oluştur
+      return AuthResponse(
+        user: User(
+          id: userResponse['id'],
+          appMetadata: {},
+          userMetadata: {},
+          aud: 'authenticated',
+          createdAt: DateTime.now().toIso8601String(),
+          email: email,
+        ),
+        session: null,
+      );
+    
       throw Exception('Kullanıcı bulunamadı');
     } catch (error) {
       print('❌ Manuel session hatası: $error');

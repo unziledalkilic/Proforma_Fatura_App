@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -15,14 +15,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     'pendingPayments': 5,
     'monthlySales': 125300.75,
     'pendingProformas': [
-      {'id': 1, 'customerName': 'ABC Şirketi', 'amount': 2500.0, 'date': '15 Oca 2024'},
-      {'id': 2, 'customerName': 'XYZ Ltd.', 'amount': 3200.0, 'date': '14 Oca 2024'},
-      {'id': 3, 'customerName': 'DEF A.Ş.', 'amount': 1750.0, 'date': '13 Oca 2024'},
+      {
+        'id': 1,
+        'customerName': 'ABC Şirketi',
+        'amount': 2500.0,
+        'date': '15 Oca 2024'
+      },
+      {
+        'id': 2,
+        'customerName': 'XYZ Ltd.',
+        'amount': 3200.0,
+        'date': '14 Oca 2024'
+      },
+      {
+        'id': 3,
+        'customerName': 'DEF A.Ş.',
+        'amount': 1750.0,
+        'date': '13 Oca 2024'
+      },
     ],
     'recentActivities': [
-      {'action': 'Yeni proforma oluşturuldu', 'customer': 'ABC Şirketi', 'time': '10:30'},
+      {
+        'action': 'Yeni proforma oluşturuldu',
+        'customer': 'ABC Şirketi',
+        'time': '10:30'
+      },
       {'action': 'Ödeme alındı', 'customer': 'DEF A.Ş.', 'time': '09:15'},
-      {'action': 'Proforma gönderildi', 'customer': 'XYZ Ltd.', 'time': '08:45'},
+      {
+        'action': 'Proforma gönderildi',
+        'customer': 'XYZ Ltd.',
+        'time': '08:45'
+      },
     ],
   };
 
@@ -218,7 +241,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color, {bool fullWidth = false}) {
+  Widget _buildStatCard(String title, String value, IconData icon, Color color,
+      {bool fullWidth = false}) {
     return Container(
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(16.0),
@@ -322,10 +346,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildQuickActions() {
     final actions = [
-      {'title': 'Yeni Proforma', 'icon': Icons.add_circle_outline, 'color': Colors.green},
-      {'title': 'Müşteri Ekle', 'icon': Icons.person_add_outlined, 'color': Colors.blue},
-      {'title': 'Ürün Yönetimi', 'icon': Icons.inventory_2_outlined, 'color': Colors.orange},
-      {'title': 'Raporlar', 'icon': Icons.bar_chart_outlined, 'color': Colors.purple},
+      {
+        'title': 'Yeni Proforma',
+        'icon': Icons.add_circle_outline,
+        'color': Colors.green
+      },
+      {
+        'title': 'Müşteri Ekle',
+        'icon': Icons.person_add_outlined,
+        'color': Colors.blue
+      },
+      {
+        'title': 'Ürün Yönetimi',
+        'icon': Icons.inventory_2_outlined,
+        'color': Colors.orange
+      },
+      {
+        'title': 'Raporlar',
+        'icon': Icons.bar_chart_outlined,
+        'color': Colors.purple
+      },
     ];
 
     return Column(
@@ -357,9 +397,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               action['icon'] as IconData,
               action['color'] as Color,
               () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${action['title']} yakında!')),
-                );
+                if (action['title'] == 'Ürün Yönetimi') {
+                  Navigator.pushNamed(context, '/product-management');
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${action['title']} yakında!')),
+                  );
+                }
               },
             );
           },
@@ -368,7 +412,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildQuickActionButton(String title, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildQuickActionButton(
+      String title, IconData icon, Color color, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -409,7 +454,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildPendingProformas() {
     final proformas = dashboardData['pendingProformas'] as List;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -435,7 +480,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        ...proformas.map((proforma) => _buildProformaItem(proforma)).toList(),
+        ...proformas.map((proforma) => _buildProformaItem(proforma)),
       ],
     );
   }
@@ -518,7 +563,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildRecentActivities() {
     final activities = dashboardData['recentActivities'] as List;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -531,7 +576,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        ...activities.map((activity) => _buildActivityItem(activity)).toList(),
+        ...activities.map((activity) => _buildActivityItem(activity)),
       ],
     );
   }
@@ -662,7 +707,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _refreshData() async {
     // Mock refresh - 2 saniye bekle
     await Future.delayed(const Duration(seconds: 2));
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Veriler güncellendi!'),

@@ -6,6 +6,8 @@ import '../services/database_service.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
 }
@@ -14,8 +16,7 @@ class RegisterScreen extends StatefulWidget {
 class AnimatedWaveBackground extends StatefulWidget {
   final Widget child;
 
-  const AnimatedWaveBackground({Key? key, required this.child})
-      : super(key: key);
+  const AnimatedWaveBackground({super.key, required this.child});
 
   @override
   _AnimatedWaveBackgroundState createState() => _AnimatedWaveBackgroundState();
@@ -563,7 +564,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               SizedBox(height: 32),
 
               // Kayıt Ol Butonu
-              Container(
+              SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
@@ -1121,7 +1122,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } catch (error) {
       print('❌ Veritabanı kontrol hatası: $error');
-      throw error;
+      rethrow;
     }
   }
 
