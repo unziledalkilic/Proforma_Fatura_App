@@ -1,7 +1,50 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/user_model.dart';
 
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  // Mevcut kullanıcının profilini getir
+  Future<UserProfile?> getCurrentUserProfile() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('Kullanıcı giriş yapmamış');
+
+      final response = await _supabase
+          .from('user_profiles')
+          .select()
+          .eq('id', user.id)
+          .single();
+
+      return UserProfile.fromJson(response);
+    } catch (e) {
+      if (e.toString().contains('No rows found')) {
+        return null; // Profil henüz oluşturulmamış
+      }
+      print('❌ Profil alınamadı: $e');
+      throw Exception('Profil yüklenirken hata oluştu: $e');
+    }
+  }
+
+  // Kullanıcı profilini güncelle
+  Future<UserProfile> updateUserProfile(UserProfile profile) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('Kullanıcı giriş yapmamış');
+
+      final response = await _supabase
+          .from('user_profiles')
+          .update(profile.toJson())
+          .eq('id', profile.id)
+          .select()
+          .single();
+
+      return UserProfile.fromJson(response);
+    } catch (e) {
+      print('❌ Profil güncellenemedi: $e');
+      throw Exception('Profil güncellenirken hata oluştu: $e');
+    }
+  }
 
   // Kullanıcı kayıt
   Future<AuthResponse> registerUser({
@@ -110,7 +153,7 @@ class AuthService {
         ),
         session: null,
       );
-    
+
       throw Exception('Kullanıcı bulunamadı');
     } catch (error) {
       print('❌ Manuel session hatası: $error');

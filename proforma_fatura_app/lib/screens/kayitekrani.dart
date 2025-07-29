@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'dart:math';
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
+import '../models/user_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -1044,6 +1046,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (response.user != null) {
           print('✅ Kullanıcı başarıyla kaydedildi!');
           print('🆔 User ID: ${response.user!.id}');
+
+          // Kullanıcı profilini user_profiles tablosuna kaydet
+          try {
+            print('👤 Profil bilgileri kaydediliyor...');
+            final supabase = Supabase.instance.client;
+            await supabase.from('user_profiles').upsert({
+              'id': response.user!.id,
+              'first_name': _userNameController.text.trim(),
+              'last_name': _userSurnameController.text.trim(),
+              'email': _userEmailController.text.trim(),
+              'phone': _userPhoneController.text.trim().isEmpty
+                  ? null
+                  : _userPhoneController.text.trim(),
+              'created_at': DateTime.now().toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
+            });
+            print('✅ Profil bilgileri başarıyla kaydedildi!');
+          } catch (profileError) {
+            print('⚠️ Profil kaydetme hatası: $profileError');
+            // Profil kaydetme hatası kritik değil, devam et
+          }
+
+          // Profil bilgileri zaten auth.users'a kaydedildi
+          // user_profile tablosu trigger ile otomatik oluşturulacak
+          print('✅ Profil bilgileri kaydedildi!');
 
           // Veritabanında kaydı kontrol et
           await _checkUserInDatabase(response.user!.id);

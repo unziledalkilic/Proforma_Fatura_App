@@ -23,6 +23,9 @@ dependencies:
   
   # Token ve kullanıcı verilerini kaydetmek için
   shared_preferences: ^2.2.2
+  
+  # Resim seçimi için
+  image_picker: ^1.0.7
 
 dev_dependencies:
   flutter_test:
