@@ -5,8 +5,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/kayitekrani.dart';
 import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
-import 'screens/dashboard_screen.dart'; 
+import 'screens/dashboard_screen.dart';
 import 'screens/product_management_screen.dart';
+import 'screens/profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,8 +56,10 @@ class MyApp extends StatelessWidget {
         '/splash': (context) => SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => RegisterScreen(),
-        '/home': (context) =>DashboardScreen(), // İleride eklenecek diğer sayfalar:
+        '/home': (context) =>
+            DashboardScreen(), // İleride eklenecek diğer sayfalar:
         '/product-management': (context) => const ProductManagementScreen(),
+        '/profile': (context) => const ProfileScreen(),
         // '/dashboard': (context) => DashboardScreen(),
         // '/customers': (context) => CustomersScreen(),
       },

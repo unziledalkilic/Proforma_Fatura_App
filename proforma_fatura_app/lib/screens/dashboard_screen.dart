@@ -717,28 +717,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _showProfile() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Profil Bilgileri'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Ad Soyad: Test Kullanıcı'),
-            Text('Email: test@test.com'),
-            Text('Şirket: Test Şirketi A.Ş.'),
-            Text('Telefon: +90 555 123 45 67'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Kapat'),
-          ),
-        ],
-      ),
-    );
+    Navigator.pushNamed(context, '/profile');
   }
 
   void _logout() {

@@ -4,6 +4,14 @@ class UserProfile {
   final String lastName;
   final String email;
   final String? phone;
+  final String? companyName;
+  final String? taxNumber;
+  final String? address;
+  final String? invoiceNumber;
+  final String? defaultCurrency;
+  final String? companyLogo;
+  final String? invoiceFooter;
+  final String? profileImage;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -13,6 +21,14 @@ class UserProfile {
     required this.lastName,
     required this.email,
     this.phone,
+    this.companyName,
+    this.taxNumber,
+    this.address,
+    this.invoiceNumber,
+    this.defaultCurrency,
+    this.companyLogo,
+    this.invoiceFooter,
+    this.profileImage,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -42,6 +58,14 @@ class UserProfile {
       lastName: json['last_name'] ?? '',
       email: json['email'] ?? '',
       phone: json['phone'],
+      companyName: json['company_name'],
+      taxNumber: json['tax_number'],
+      address: json['address'],
+      invoiceNumber: json['invoice_number'],
+      defaultCurrency: json['default_currency'],
+      companyLogo: json['company_logo_url'],
+      invoiceFooter: json['invoice_footer'],
+      profileImage: json['profile_image'],
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
@@ -59,6 +83,14 @@ class UserProfile {
       'last_name': lastName,
       'email': email,
       'phone': phone,
+      'company_name': companyName,
+      'tax_number': taxNumber,
+      'address': address,
+      'invoice_number': invoiceNumber,
+      'default_currency': defaultCurrency,
+      'company_logo_url': companyLogo,
+      'invoice_footer': invoiceFooter,
+      'profile_image': profileImage,
       'updated_at': DateTime.now().toIso8601String(),
     };
   }
@@ -78,6 +110,14 @@ class UserProfile {
     String? lastName,
     String? email,
     String? phone,
+    String? companyName,
+    String? taxNumber,
+    String? address,
+    String? invoiceNumber,
+    String? defaultCurrency,
+    String? companyLogo,
+    String? invoiceFooter,
+    String? profileImage,
   }) {
     return UserProfile(
       id: id,
@@ -85,6 +125,14 @@ class UserProfile {
       lastName: lastName ?? this.lastName,
       email: email ?? this.email,
       phone: phone ?? this.phone,
+      companyName: companyName ?? this.companyName,
+      taxNumber: taxNumber ?? this.taxNumber,
+      address: address ?? this.address,
+      invoiceNumber: invoiceNumber ?? this.invoiceNumber,
+      defaultCurrency: defaultCurrency ?? this.defaultCurrency,
+      companyLogo: companyLogo ?? this.companyLogo,
+      invoiceFooter: invoiceFooter ?? this.invoiceFooter,
+      profileImage: profileImage ?? this.profileImage,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
     );
@@ -93,7 +141,7 @@ class UserProfile {
   // Debug için string gösterimi
   @override
   String toString() {
-    return 'UserProfile{id: $id, fullName: $fullName, email: $email, phone: ${phone ?? 'Yok'}}';
+    return 'UserProfile{id: $id, fullName: $fullName, email: $email, phone: ${phone ?? 'Yok'}, companyName: ${companyName ?? 'Yok'}, taxNumber: ${taxNumber ?? 'Yok'}, address: ${address ?? 'Yok'}, invoiceNumber: ${invoiceNumber ?? 'Yok'}, defaultCurrency: ${defaultCurrency ?? 'TRY'}, invoiceFooter: ${invoiceFooter ?? 'Yok'}}';
   }
 
   // Validasyon metodları
