@@ -2,6 +2,7 @@ import 'product_category.dart';
 
 class Product {
   final int? id;
+  final int userId; // Kullanıcıya özel
   final String name;
   final String? description;
   final double price;
@@ -15,6 +16,7 @@ class Product {
 
   Product({
     this.id,
+    required this.userId,
     required this.name,
     this.description,
     required this.price,
@@ -30,6 +32,7 @@ class Product {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'user_id': userId,
       'name': name,
       'description': description,
       'price': price,
@@ -46,6 +49,7 @@ class Product {
   factory Product.fromMap(Map<String, dynamic> map) {
     return Product(
       id: map['id'],
+      userId: map['user_id'] ?? map['userId'],
       name: map['name'],
       description: map['description'],
       price: map['price'].toDouble(),
@@ -63,6 +67,7 @@ class Product {
 
   Product copyWith({
     int? id,
+    int? userId,
     String? name,
     String? description,
     double? price,
@@ -76,6 +81,7 @@ class Product {
   }) {
     return Product(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       name: name ?? this.name,
       description: description ?? this.description,
       price: price ?? this.price,

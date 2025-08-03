@@ -24,16 +24,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        try {
-          print('🔄 ProductsScreen: Ürünler yükleniyor...');
-          context.read<ProductProvider>().loadProducts();
-          context.read<ProductProvider>().loadCategories();
-        } catch (e) {
-          print('❌ initState Provider hatası: $e');
-        }
-      }
+      _loadInitialData();
     });
+  }
+
+  Future<void> _loadInitialData() async {
+    if (!mounted) return;
+    try {
+      final productProvider = context.read<ProductProvider>();
+      await productProvider.loadProducts();
+      if (mounted) {
+        await productProvider.loadCategories();
+      }
+    } catch (e) {
+      // Error handling for initState
+    }
   }
 
   @override
@@ -46,53 +51,40 @@ class _ProductsScreenState extends State<ProductsScreen> {
     if (!mounted) return;
 
     try {
-      setState(() {
-        final productProvider = context.read<ProductProvider>();
-        final allProducts = productProvider.products;
-        List<Product> filtered = allProducts;
+      // BuildContext'i güvenli şekilde kullan
+      final productProvider = context.read<ProductProvider>();
 
-        // Kategori filtresi
-        if (_selectedCategoryFilter != null) {
-          filtered = filtered
-              .where(
-                (product) =>
-                    product.category?.id == _selectedCategoryFilter!.id,
-              )
-              .toList();
-        }
+      final allProducts = productProvider.products;
+      List<Product> filtered = List.from(allProducts); // Yeni liste oluştur
 
-        // Arama filtresi
-        if (query.isNotEmpty) {
-          filtered = filtered.where((product) {
-            return product.name.toLowerCase().contains(query.toLowerCase()) ||
-                (product.description?.toLowerCase().contains(
-                      query.toLowerCase(),
-                    ) ??
-                    false) ||
-                (product.barcode?.contains(query) ?? false);
-          }).toList();
-        }
+      // Kategori filtresi
+      if (_selectedCategoryFilter != null) {
+        filtered = filtered
+            .where(
+              (product) => product.category?.id == _selectedCategoryFilter!.id,
+            )
+            .toList();
+      }
 
-        _filteredProducts = filtered;
-      });
+      // Arama filtresi
+      if (query.isNotEmpty) {
+        filtered = filtered.where((product) {
+          return product.name.toLowerCase().contains(query.toLowerCase()) ||
+              (product.description?.toLowerCase().contains(
+                    query.toLowerCase(),
+                  ) ??
+                  false) ||
+              (product.barcode?.contains(query) ?? false);
+        }).toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _filteredProducts = filtered;
+        });
+      }
     } catch (e) {
-      print('❌ _filterProducts hatası: $e');
-    }
-  }
-
-  // Para birimi sembolü getir
-  String _getCurrencySymbol(String currency) {
-    switch (currency) {
-      case 'TRY':
-        return '₺';
-      case 'USD':
-        return '\$';
-      case 'EUR':
-        return '€';
-      case 'GBP':
-        return '£';
-      default:
-        return currency;
+      // Error handling for _filterProducts
     }
   }
 
@@ -112,17 +104,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () async {
-              final result = await Navigator.of(context).push(
+              final navigatorContext = context;
+              final result = await Navigator.of(navigatorContext).push(
                 MaterialPageRoute(
                   builder: (context) => const ProductFormScreen(),
                 ),
               );
               // Eğer ürün eklendi/güncellendi ise listeyi yeniden yükle
               if (result == true && mounted) {
-                print(
-                  '🔄 ProductsScreen: Ürün eklendi/güncellendi, liste yenileniyor...',
-                );
-                context.read<ProductProvider>().loadProducts();
+                final productProvider = navigatorContext
+                    .read<ProductProvider>();
+                await productProvider.loadProducts();
+                // Filtrelemeyi yeniden uygula
+                _filterProducts(_searchController.text);
               }
             },
           ),
@@ -143,12 +137,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         icon: const Icon(Icons.clear),
                         onPressed: () {
                           _searchController.clear();
-                          _filterProducts('');
+                          if (mounted) {
+                            _filterProducts('');
+                          }
                         },
                       )
                     : null,
               ),
-              onChanged: _filterProducts,
+              onChanged: (value) {
+                if (mounted) {
+                  _filterProducts(value);
+                }
+              },
             ),
           ),
 
@@ -182,7 +182,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
                             setState(() {
                               _selectedCategoryFilter = category;
-                              _filterProducts(_searchController.text);
+                            });
+
+                            // Filtrelemeyi güvenli şekilde uygula
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                _filterProducts(_searchController.text);
+                              }
                             });
                           },
                           child: Padding(
@@ -270,6 +276,39 @@ class _ProductsScreenState extends State<ProductsScreen> {
             },
           ),
 
+          // Filtreleme temizleme butonu
+          if (_selectedCategoryFilter != null ||
+              _searchController.text.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppConstants.paddingMedium,
+                vertical: AppConstants.paddingSmall,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _selectedCategoryFilter = null;
+                          _searchController.clear();
+                        });
+                        if (mounted) {
+                          _filterProducts('');
+                        }
+                      },
+                      icon: const Icon(Icons.clear, size: 16),
+                      label: const Text('Filtreleri Temizle'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[200],
+                        foregroundColor: Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Ürün listesi
           Expanded(
             child: Consumer<ProductProvider>(
@@ -306,9 +345,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   );
                 }
 
-                final products = _searchController.text.isEmpty
-                    ? productProvider.products
-                    : _filteredProducts;
+                // Filtreleme durumuna göre ürünleri belirle
+                final products =
+                    (_searchController.text.isNotEmpty ||
+                        _selectedCategoryFilter != null)
+                    ? _filteredProducts
+                    : productProvider.products;
 
                 if (products.isEmpty) {
                   return Center(
@@ -322,27 +364,30 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          _searchController.text.isEmpty
+                          _searchController.text.isEmpty &&
+                                  _selectedCategoryFilter == null
                               ? 'Henüz ürün bulunmuyor'
                               : 'Arama sonucu bulunamadı',
                           style: AppConstants.bodyStyle,
                         ),
-                        if (_searchController.text.isEmpty) ...[
+                        if (_searchController.text.isEmpty &&
+                            _selectedCategoryFilter == null) ...[
                           const SizedBox(height: 16),
                           ElevatedButton(
                             onPressed: () async {
-                              final result = await Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const ProductFormScreen(),
-                                ),
-                              );
-                              // Eğer ürün eklendi/güncellendi ise listeyi yeniden yükle
+                              final navigatorContext = context;
+                              final result =
+                                  await Navigator.of(navigatorContext).push(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const ProductFormScreen(),
+                                    ),
+                                  );
                               if (result == true && mounted) {
-                                print(
-                                  '🔄 ProductsScreen: Ürün eklendi/güncellendi, liste yenileniyor...',
-                                );
-                                context.read<ProductProvider>().loadProducts();
+                                final productProvider = navigatorContext
+                                    .read<ProductProvider>();
+                                await productProvider.loadProducts();
+                                _filterProducts(_searchController.text);
                               }
                             },
                             child: const Text('İlk Ürünü Ekle'),
@@ -353,165 +398,180 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(AppConstants.paddingMedium),
-                  itemCount: products.length,
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    return Card(
-                      margin: const EdgeInsets.only(
-                        bottom: AppConstants.paddingSmall,
-                      ),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: product.category != null
-                              ? Color(
-                                  int.parse(
-                                    product.category!.color.replaceAll(
-                                      '#',
-                                      '0xFF',
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    await productProvider.loadProducts();
+                    _filterProducts(_searchController.text);
+                  },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(AppConstants.paddingMedium),
+                    itemCount: products.length,
+                    itemBuilder: (context, index) {
+                      final product = products[index];
+                      return Card(
+                        margin: const EdgeInsets.only(
+                          bottom: AppConstants.paddingSmall,
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: product.category?.color != null
+                                ? Color(
+                                    int.parse(
+                                      product.category!.color.replaceAll(
+                                        '#',
+                                        '0xFF',
+                                      ),
+                                    ),
+                                  )
+                                : Colors.grey,
+                            child: Text(
+                              product.name.isNotEmpty
+                                  ? product.name[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            product.name,
+                            style: AppConstants.bodyStyle.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (product.description?.isNotEmpty == true)
+                                Text(
+                                  product.description!,
+                                  style: AppConstants.captionStyle,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Text(
+                                    '${product.price.toStringAsFixed(2)} ${product.currency}',
+                                    style: AppConstants.bodyStyle.copyWith(
+                                      fontWeight: FontWeight.w500,
+                                      color: AppConstants.primaryColor,
                                     ),
                                   ),
-                                )
-                              : AppConstants.successColor,
-                          child: const Icon(
-                            Icons.inventory,
-                            color: Colors.white,
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '/ ${product.unit}',
+                                    style: AppConstants.captionStyle,
+                                  ),
+                                ],
+                              ),
+                              if (product.category != null) ...[
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: Color(
+                                          int.parse(
+                                            product.category!.color.replaceAll(
+                                              '#',
+                                              '0xFF',
+                                            ),
+                                          ),
+                                        ),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      product.category!.name,
+                                      style: AppConstants.captionStyle.copyWith(
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) async {
+                              if (!mounted) return;
+
+                              switch (value) {
+                                case 'edit':
+                                  final navigatorContext = context;
+
+                                  // Kategorilerin yüklendiğinden emin ol
+                                  final productProvider = navigatorContext
+                                      .read<ProductProvider>();
+                                  if (productProvider.categories.isEmpty) {
+                                    print(
+                                      '🔄 Düzenleme için kategoriler yükleniyor...',
+                                    );
+                                    await productProvider.loadCategories();
+                                    print(
+                                      '✅ ${productProvider.categories.length} kategori yüklendi',
+                                    );
+                                  }
+
+                                  final result =
+                                      await Navigator.of(navigatorContext).push(
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              ProductFormScreen(
+                                                product: product,
+                                              ),
+                                        ),
+                                      );
+                                  if (result == true && mounted) {
+                                    await productProvider.loadProducts();
+                                    _filterProducts(_searchController.text);
+                                  }
+                                  break;
+                                case 'delete':
+                                  _showDeleteDialog(product);
+                                  break;
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.edit, size: 16),
+                                    SizedBox(width: 8),
+                                    Text('Düzenle'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.delete,
+                                      size: 16,
+                                      color: Colors.red,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Sil',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        title: Text(
-                          product.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (product.description != null)
-                              Text(product.description!),
-                            Text(
-                              '${_getCurrencySymbol(product.currency)}${product.price.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppConstants.primaryColor,
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Text('Birim: ${product.unit}'),
-                                if (product.category != null) ...[
-                                  const SizedBox(width: 16),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Color(
-                                        int.parse(
-                                          product.category!.color.replaceAll(
-                                            '#',
-                                            '0xFF',
-                                          ),
-                                        ),
-                                      ).withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: Color(
-                                          int.parse(
-                                            product.category!.color.replaceAll(
-                                              '#',
-                                              '0xFF',
-                                            ),
-                                          ),
-                                        ),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      product.category!.name,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Color(
-                                          int.parse(
-                                            product.category!.color.replaceAll(
-                                              '#',
-                                              '0xFF',
-                                            ),
-                                          ),
-                                        ),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ],
-                        ),
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (value) async {
-                            if (!mounted) return;
-
-                            switch (value) {
-                              case 'edit':
-                                final result = await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        ProductFormScreen(product: product),
-                                  ),
-                                );
-                                // Eğer ürün güncellendi ise listeyi yeniden yükle
-                                if (result == true && mounted) {
-                                  print(
-                                    '🔄 ProductsScreen: Ürün güncellendi, liste yenileniyor...',
-                                  );
-                                  context
-                                      .read<ProductProvider>()
-                                      .loadProducts();
-                                }
-                                break;
-                              case 'delete':
-                                _showDeleteDialog(product);
-                                break;
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.edit),
-                                  SizedBox(width: 8),
-                                  Text('Düzenle'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.delete,
-                                    color: AppConstants.errorColor,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Sil',
-                                    style: TextStyle(
-                                      color: AppConstants.errorColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        onTap: () {
-                          // Ürün detay sayfasına git
-                        },
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 );
               },
             ),
@@ -520,15 +580,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          final result = await Navigator.of(context).push(
+          final navigatorContext = context;
+
+          // Kategorilerin yüklendiğinden emin ol
+          final productProvider = navigatorContext.read<ProductProvider>();
+          if (productProvider.categories.isEmpty) {
+            print('🔄 Kategoriler yükleniyor...');
+            await productProvider.loadCategories();
+            print('✅ ${productProvider.categories.length} kategori yüklendi');
+          }
+
+          final result = await Navigator.of(navigatorContext).push(
             MaterialPageRoute(builder: (context) => const ProductFormScreen()),
           );
           // Eğer ürün eklendi/güncellendi ise listeyi yeniden yükle
           if (result == true && mounted) {
-            print(
-              '🔄 ProductsScreen: Ürün eklendi/güncellendi, liste yenileniyor...',
-            );
-            context.read<ProductProvider>().loadProducts();
+            await productProvider.loadProducts();
+            // Filtrelemeyi yeniden uygula
+            _filterProducts(_searchController.text);
           }
         },
         backgroundColor: AppConstants.primaryColor,
@@ -538,8 +607,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   void _showDeleteDialog(Product product) {
+    final dialogContext = context;
     showDialog(
-      context: context,
+      context: dialogContext,
       builder: (context) => AlertDialog(
         title: const Text('Ürünü Sil'),
         content: Text(
@@ -553,7 +623,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
           TextButton(
             onPressed: () {
               // ProductProvider'ı dialog kapatılmadan önce al
-              final productProvider = context.read<ProductProvider>();
+              final productProvider = dialogContext.read<ProductProvider>();
               Navigator.of(context).pop();
               if (mounted && product.id != null) {
                 productProvider.deleteProduct(product.id!);

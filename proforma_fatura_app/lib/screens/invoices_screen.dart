@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_constants.dart';
 import '../providers/invoice_provider.dart';
+import 'invoice_form_screen.dart';
+import 'invoice_detail_screen.dart';
 
 class InvoicesScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -73,8 +75,27 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () {
-              // Yeni fatura oluşturma sayfasına git
+            onPressed: () async {
+              print('🔄 + butonuna basıldı (AppBar)');
+              try {
+                print('🔄 Navigator.push başlıyor...');
+                final result = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) {
+                      print('🔄 InvoiceFormScreen builder çağrıldı');
+                      return const InvoiceFormScreen();
+                    },
+                  ),
+                );
+                print('✅ Navigator.push tamamlandı, result: $result');
+                if (result == true && mounted) {
+                  print('🔄 InvoiceProvider.loadInvoices çağrılıyor');
+                  context.read<InvoiceProvider>().loadInvoices();
+                  print('✅ InvoiceProvider.loadInvoices tamamlandı');
+                }
+              } catch (e) {
+                print('❌ + buton hatası: $e');
+              }
             },
           ),
         ],
@@ -183,8 +204,39 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                             _selectedStatus == 'all') ...[
                           const SizedBox(height: 16),
                           ElevatedButton(
-                            onPressed: () {
-                              // Yeni fatura oluşturma sayfasına git
+                            onPressed: () async {
+                              print('🔄 İlk Faturayı Oluştur butonuna basıldı');
+                              try {
+                                print(
+                                  '🔄 Navigator.push başlıyor (İlk Fatura)...',
+                                );
+                                final result = await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) {
+                                      print(
+                                        '🔄 InvoiceFormScreen builder çağrıldı (İlk Fatura)',
+                                      );
+                                      return const InvoiceFormScreen();
+                                    },
+                                  ),
+                                );
+                                print(
+                                  '✅ Navigator.push tamamlandı (İlk Fatura), result: $result',
+                                );
+                                if (result == true && mounted) {
+                                  print(
+                                    '🔄 InvoiceProvider.loadInvoices çağrılıyor (İlk Fatura)',
+                                  );
+                                  context
+                                      .read<InvoiceProvider>()
+                                      .loadInvoices();
+                                  print(
+                                    '✅ InvoiceProvider.loadInvoices tamamlandı (İlk Fatura)',
+                                  );
+                                }
+                              } catch (e) {
+                                print('❌ İlk Fatura buton hatası: $e');
+                              }
                             },
                             child: const Text('İlk Faturayı Oluştur'),
                           ),
@@ -247,26 +299,64 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                             ),
                           ],
                         ),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              '₺${invoice.totalAmount.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppConstants.primaryColor,
-                                fontSize: 16,
-                              ),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '₺${invoice.totalAmount.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppConstants.primaryColor,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Text(
+                                  '${invoice.itemCount} kalem',
+                                  style: AppConstants.captionStyle,
+                                ),
+                              ],
                             ),
-                            Text(
-                              '${invoice.itemCount} kalem',
-                              style: AppConstants.captionStyle,
+                            const SizedBox(width: 8),
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert),
+                              onSelected: (value) =>
+                                  _handleMenuAction(value, invoice),
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit, color: Colors.blue),
+                                      SizedBox(width: 8),
+                                      Text('Düzenle'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, color: Colors.red),
+                                      SizedBox(width: 8),
+                                      Text('Sil'),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                         onTap: () {
-                          // Fatura detay sayfasına git
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  InvoiceDetailScreen(invoice: invoice),
+                            ),
+                          );
                         },
                       ),
                     );
@@ -278,13 +368,114 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Yeni fatura oluşturma sayfasına git
+        onPressed: () async {
+          print('🔄 FAB + butonuna basıldı');
+          try {
+            print('🔄 Navigator.push başlıyor (FAB)...');
+            final result = await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) {
+                  print('🔄 InvoiceFormScreen builder çağrıldı (FAB)');
+                  return const InvoiceFormScreen();
+                },
+              ),
+            );
+            print('✅ Navigator.push tamamlandı (FAB), result: $result');
+            if (result == true && mounted) {
+              print('🔄 InvoiceProvider.loadInvoices çağrılıyor (FAB)');
+              context.read<InvoiceProvider>().loadInvoices();
+              print('✅ InvoiceProvider.loadInvoices tamamlandı (FAB)');
+            }
+          } catch (e) {
+            print('❌ FAB buton hatası: $e');
+          }
         },
         backgroundColor: AppConstants.primaryColor,
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
+  }
+
+  void _handleMenuAction(String action, dynamic invoice) async {
+    switch (action) {
+      case 'edit':
+        await _editInvoice(invoice);
+        break;
+      case 'delete':
+        await _deleteInvoice(invoice);
+        break;
+    }
+  }
+
+  Future<void> _editInvoice(dynamic invoice) async {
+    try {
+      final result = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => InvoiceFormScreen(invoice: invoice),
+        ),
+      );
+      if (result == true && mounted) {
+        context.read<InvoiceProvider>().loadInvoices();
+      }
+    } catch (e) {
+      print('❌ Fatura düzenleme hatası: $e');
+    }
+  }
+
+  Future<void> _deleteInvoice(dynamic invoice) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Faturayı Sil'),
+        content: Text(
+          '${invoice.invoiceNumber} numaralı faturayı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        final success = await context.read<InvoiceProvider>().deleteInvoice(
+          invoice.id,
+        );
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${invoice.invoiceNumber} numaralı fatura silindi'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Fatura silinirken hata oluştu'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        print('❌ Fatura silme hatası: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Fatura silinirken hata oluştu: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildStatusFilter(String label, String status) {

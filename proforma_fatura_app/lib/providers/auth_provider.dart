@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../models/user.dart';
+import '../models/product_category.dart';
 import '../services/postgres_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _currentUser;
+
   bool _isLoading = false;
   String? _error;
+
+  // ProductProvider'a kullanıcı ID'sini geçirmek için callback
+  Function(int)? onUserLogin;
 
   User? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
   bool get isLoggedIn => _currentUser != null;
 
   // PostgreSQL servisi
@@ -66,6 +72,10 @@ class AuthProvider extends ChangeNotifier {
 
       if (userId != null) {
         _currentUser = user.copyWith(id: userId);
+
+        // Yeni kullanıcı için varsayılan kategorileri oluştur
+        await _createDefaultCategoriesForUser(userId);
+
         _isLoading = false;
         notifyListeners();
         return true;
@@ -106,6 +116,12 @@ class AuthProvider extends ChangeNotifier {
           _currentUser = user;
           _isLoading = false;
           notifyListeners();
+
+          // ProductProvider'a kullanıcı ID'sini geçir
+          if (onUserLogin != null && user.id != null) {
+            onUserLogin!(user.id!);
+          }
+
           return true;
         } else {
           _error = 'Hatalı şifre';
@@ -132,6 +148,16 @@ class AuthProvider extends ChangeNotifier {
     _currentUser = null;
     _error = null;
     notifyListeners();
+  }
+
+  /// Kullanıcı giriş durumunu kontrol et (uygulama başlangıcında çağrılır)
+  Future<void> checkLoginStatus() async {
+    // Eğer zaten giriş yapmışsa, ProductProvider'a kullanıcı ID'sini geçir
+    if (_currentUser != null &&
+        _currentUser!.id != null &&
+        onUserLogin != null) {
+      onUserLogin!(_currentUser!.id!);
+    }
   }
 
   /// Profil güncelleme
@@ -228,11 +254,64 @@ class AuthProvider extends ChangeNotifier {
   /// Hata mesajını temizle
   void clearError() {
     _error = null;
-    notifyListeners();
+    // notifyListeners'ı asenkron olarak çağır
+    Future.microtask(() => notifyListeners());
   }
 
   /// Basit şifre hash'leme (gerçek uygulamada bcrypt kullanın)
   String _hashPassword(String password) {
     return base64.encode(password.codeUnits);
+  }
+
+  /// Yeni kullanıcı için varsayılan kategorileri oluştur
+  Future<void> _createDefaultCategoriesForUser(int userId) async {
+    try {
+      final defaultCategories = [
+        {
+          'name': 'Elektronik',
+          'description': 'Elektronik ürünler',
+          'color': '#FF5722',
+        },
+        {'name': 'Giyim', 'description': 'Giyim ürünleri', 'color': '#2196F3'},
+        {
+          'name': 'Ev & Yaşam',
+          'description': 'Ev ve yaşam ürünleri',
+          'color': '#4CAF50',
+        },
+        {'name': 'Spor', 'description': 'Spor ürünleri', 'color': '#FF9800'},
+        {
+          'name': 'Kitap',
+          'description': 'Kitap ve yayınlar',
+          'color': '#9C27B0',
+        },
+        {'name': 'Gıda', 'description': 'Gıda ürünleri', 'color': '#795548'},
+        {
+          'name': 'Kozmetik',
+          'description': 'Kozmetik ürünleri',
+          'color': '#E91E63',
+        },
+        {'name': 'Diğer', 'description': 'Diğer ürünler', 'color': '#9E9E9E'},
+      ];
+
+      for (final category in defaultCategories) {
+        final productCategory = ProductCategory(
+          userId: userId,
+          name: category['name']!,
+          description: category['description']!,
+          color: category['color']!,
+          isActive: true,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        await _postgresService.insertCategory(productCategory);
+      }
+
+      print(
+        '✅ Kullanıcı $userId için ${defaultCategories.length} varsayılan kategori oluşturuldu',
+      );
+    } catch (e) {
+      print('❌ Varsayılan kategori oluşturma hatası: $e');
+    }
   }
 }

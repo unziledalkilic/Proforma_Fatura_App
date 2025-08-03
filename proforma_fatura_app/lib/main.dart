@@ -7,6 +7,7 @@ import 'providers/auth_provider.dart';
 import 'providers/customer_provider.dart';
 import 'providers/product_provider.dart';
 import 'providers/invoice_provider.dart';
+import 'providers/company_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,8 +23,24 @@ class ProformaFaturaApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => CustomerProvider()),
-        ChangeNotifierProvider(create: (_) => ProductProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, ProductProvider>(
+          create: (_) => ProductProvider(),
+          update: (_, auth, product) {
+            if (product != null) {
+              // AuthProvider'dan ProductProvider'a kullanıcı ID'sini geçir
+              auth.onUserLogin = (userId) {
+                product.setCurrentUser(userId);
+              };
+              // Uygulama başlangıcında giriş durumunu kontrol et
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                auth.checkLoginStatus();
+              });
+            }
+            return product ?? ProductProvider();
+          },
+        ),
         ChangeNotifierProvider(create: (_) => InvoiceProvider()),
+        ChangeNotifierProvider(create: (_) => CompanyProvider()),
       ],
       child: MaterialApp(
         title: AppConstants.appName,

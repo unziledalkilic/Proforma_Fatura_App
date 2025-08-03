@@ -4,7 +4,7 @@ import '../constants/app_constants.dart';
 import '../models/product.dart';
 import '../models/product_category.dart';
 import '../providers/product_provider.dart';
-import '../utils/text_formatter.dart';
+import '../providers/auth_provider.dart';
 
 class ProductFormScreen extends StatefulWidget {
   final Product? product; // null ise yeni ürün, dolu ise düzenleme
@@ -49,8 +49,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
   String _selectedCurrency = 'TRY';
   ProductCategory? _selectedCategory;
-  bool _isCustomCategory = false;
-  final _customCategoryController = TextEditingController();
 
   // Para birimi sembolü getir
   String _getCurrencySymbol(String currency) {
@@ -71,17 +69,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   @override
   void initState() {
     super.initState();
-    // Kategorileri yükle
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        try {
-          context.read<ProductProvider>().loadCategories();
-        } catch (e) {
-          print('❌ initState kategori yükleme hatası: $e');
-        }
-      }
-    });
 
+    // Form verilerini yükle
     if (widget.product != null) {
       // Düzenleme modu - mevcut verileri yükle
       _nameController.text = widget.product!.name;
@@ -90,11 +79,52 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       _selectedCurrency = widget.product!.currency;
       _unitController.text = widget.product!.unit;
       _barcodeController.text = widget.product!.barcode ?? '';
-      _selectedCategory = widget.product!.category;
     } else {
       // Yeni ürün - varsayılan değerler
       _unitController.text = 'Adet';
     }
+
+    // Kategorileri yükle ve kategori seçimini yap
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (mounted) {
+        try {
+          print('🔄 Kategoriler yükleniyor...');
+          await context.read<ProductProvider>().loadCategories();
+
+          if (mounted) {
+            setState(() {
+              final categories = context.read<ProductProvider>().categories;
+              print('✅ ${categories.length} kategori yüklendi');
+
+              if (widget.product != null) {
+                // Düzenleme modu - mevcut ürünün kategorisini bul ve seç
+                if (widget.product!.category != null) {
+                  _selectedCategory = categories.firstWhere(
+                    (cat) => cat.id == widget.product!.category!.id,
+                    orElse: () => widget.product!.category!,
+                  );
+                  print(
+                    '📝 Düzenleme modu: Kategori seçildi: ${_selectedCategory?.name}',
+                  );
+                }
+              } else {
+                // Yeni ürün için varsayılan kategori seç (ilk kategori)
+                if (categories.isNotEmpty) {
+                  _selectedCategory = categories.first;
+                  print(
+                    '🆕 Yeni ürün: Varsayılan kategori seçildi: ${_selectedCategory?.name}',
+                  );
+                } else {
+                  print('⚠️ Hiç kategori bulunamadı!');
+                }
+              }
+            });
+          }
+        } catch (e) {
+          print('❌ initState kategori yükleme hatası: $e');
+        }
+      }
+    });
   }
 
   @override
@@ -104,12 +134,22 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _priceController.dispose();
     _unitController.dispose();
     _barcodeController.dispose();
-    _customCategoryController.dispose();
     super.dispose();
   }
 
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Kategori validasyonu
+    if (_selectedCategory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lütfen bir kategori seçin'),
+          backgroundColor: AppConstants.errorColor,
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
 
@@ -120,50 +160,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     try {
       final price = double.tryParse(_priceController.text) ?? 0.0;
 
-      // Kategori işlemi
-      ProductCategory? finalCategory = _selectedCategory;
-      if (_isCustomCategory &&
-          _customCategoryController.text.isNotEmpty &&
-          mounted) {
-        try {
-          // Yeni kategori oluştur
-          final newCategory = ProductCategory(
-            name: TextFormatter.capitalizeWords(_customCategoryController.text),
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          );
-
-          if (!mounted) return;
-
-          final success = await context.read<ProductProvider>().addCategory(
-            newCategory,
-          );
-          if (success && mounted) {
-            // Kategorileri yeniden yükle ve yeni kategoriyi bul
-            await context.read<ProductProvider>().loadCategories();
-            if (mounted) {
-              final categories = context.read<ProductProvider>().categories;
-              finalCategory = categories.firstWhere(
-                (cat) => cat.name == newCategory.name,
-                orElse: () => newCategory,
-              );
-            }
-          }
-        } catch (e) {
-          print('❌ Kategori ekleme hatası: $e');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Kategori eklenirken hata oluştu: $e'),
-                backgroundColor: AppConstants.errorColor,
-              ),
-            );
-          }
-        }
+      // Mevcut kullanıcının ID'sini al
+      final currentUser = context.read<AuthProvider>().currentUser;
+      if (currentUser?.id == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kullanıcı bilgisi bulunamadı'),
+            backgroundColor: AppConstants.errorColor,
+          ),
+        );
+        return;
       }
 
       final product = Product(
         id: widget.product?.id ?? 0,
+        userId: currentUser!.id!,
         name: _nameController.text,
         description: _descriptionController.text.isEmpty
             ? null
@@ -174,7 +185,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         barcode: _barcodeController.text.isEmpty
             ? null
             : _barcodeController.text,
-        category: finalCategory,
+        category: _selectedCategory,
         createdAt: widget.product?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -192,7 +203,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         success = await productProvider.updateProduct(product);
       }
 
-      if (success && mounted) {
+      if (!mounted) return;
+
+      if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -206,7 +219,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         Navigator.of(
           context,
         ).pop(true); // true döndürerek başarılı olduğunu belirt
-      } else if (mounted) {
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(productProvider.error ?? 'Bir hata oluştu'),
@@ -449,11 +462,23 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               // Kategori
               Consumer<ProductProvider>(
                 builder: (context, productProvider, child) {
+                  final categories = productProvider.categories;
+
+                  // Debug mesajı
+                  print(
+                    '🔍 ProductFormScreen - Kategori sayısı: ${categories.length}',
+                  );
+                  if (categories.isNotEmpty) {
+                    print(
+                      '📋 Mevcut kategoriler: ${categories.map((c) => c.name).join(', ')}',
+                    );
+                  }
+
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Kategori',
+                        'Kategori *',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
@@ -470,21 +495,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: PopupMenuButton<ProductCategory?>(
+                                enabled: categories.isNotEmpty,
                                 initialValue: _selectedCategory,
                                 onSelected: (category) {
                                   if (!mounted) return;
-
                                   setState(() {
-                                    if (category?.id == -1) {
-                                      // Yeni kategori ekle seçildi
-                                      _isCustomCategory = true;
-                                      _selectedCategory = null;
-                                      _customCategoryController.clear();
-                                    } else {
-                                      _selectedCategory = category;
-                                      _isCustomCategory = false;
-                                    }
+                                    _selectedCategory = category;
                                   });
+                                  print(
+                                    '🎯 Kategori seçildi: ${category?.name}',
+                                  );
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -535,71 +555,44 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                   ),
                                 ),
                                 itemBuilder: (context) => [
-                                  ...productProvider.categories.map(
-                                    (category) => PopupMenuItem(
-                                      value: category,
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 16,
-                                            height: 16,
-                                            decoration: BoxDecoration(
-                                              color: Color(
-                                                int.parse(
-                                                  category.color.replaceAll(
-                                                    '#',
-                                                    '0xFF',
+                                  if (categories.isEmpty)
+                                    const PopupMenuItem(
+                                      enabled: false,
+                                      child: Text('Kategori bulunamadı'),
+                                    )
+                                  else
+                                    ...categories.map(
+                                      (category) => PopupMenuItem(
+                                        value: category,
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 16,
+                                              height: 16,
+                                              decoration: BoxDecoration(
+                                                color: Color(
+                                                  int.parse(
+                                                    category.color.replaceAll(
+                                                      '#',
+                                                      '0xFF',
+                                                    ),
                                                   ),
                                                 ),
+                                                shape: BoxShape.circle,
                                               ),
-                                              shape: BoxShape.circle,
                                             ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(category.name),
-                                        ],
+                                            const SizedBox(width: 8),
+                                            Text(category.name),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const PopupMenuDivider(),
-                                  PopupMenuItem(
-                                    value: null,
-                                    child: const Text('Kategori Yok'),
-                                  ),
-                                  const PopupMenuDivider(),
-                                  PopupMenuItem(
-                                    value: ProductCategory(
-                                      id: -1,
-                                      name: 'custom',
-                                      createdAt: DateTime.now(),
-                                      updatedAt: DateTime.now(),
-                                    ),
-                                    child: const Text('Yeni Kategori Ekle'),
-                                  ),
                                 ],
                               ),
                             ),
                           ),
                         ],
                       ),
-                      if (_isCustomCategory) ...[
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _customCategoryController,
-                          decoration: const InputDecoration(
-                            labelText: 'Yeni Kategori Adı',
-                            hintText: 'Kategori adını girin',
-                            prefixIcon: Icon(Icons.category),
-                          ),
-                          validator: (value) {
-                            if (_isCustomCategory &&
-                                (value == null || value.trim().isEmpty)) {
-                              return 'Kategori adı gerekli';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
                     ],
                   );
                 },

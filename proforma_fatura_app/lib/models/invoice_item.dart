@@ -2,7 +2,7 @@ import 'product.dart';
 
 class InvoiceItem {
   final int? id;
-  final int invoiceId;
+  final int? invoiceId; // Opsiyonel yapıldı, fatura kaydedilirken atanacak
   final Product product;
   final double quantity;
   final double unitPrice;
@@ -12,7 +12,7 @@ class InvoiceItem {
 
   InvoiceItem({
     this.id,
-    required this.invoiceId,
+    this.invoiceId, // Opsiyonel yapıldı
     required this.product,
     required this.quantity,
     required this.unitPrice,
@@ -58,7 +58,7 @@ class InvoiceItem {
   factory InvoiceItem.fromMap(Map<String, dynamic> map, Product product) {
     return InvoiceItem(
       id: map['id'],
-      invoiceId: map['invoiceId'],
+      invoiceId: map['invoiceId'] as int?,
       product: product,
       quantity: map['quantity'].toDouble(),
       unitPrice: map['unitPrice'].toDouble(),
@@ -89,4 +89,4 @@ class InvoiceItem {
       notes: notes ?? this.notes,
     );
   }
-} 
+}

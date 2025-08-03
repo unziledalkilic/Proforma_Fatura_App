@@ -2,11 +2,14 @@ import 'customer.dart';
 import 'invoice_item.dart';
 
 enum InvoiceStatus {
-  draft,      // Taslak
-  sent,       // Gönderildi
-  accepted,   // Kabul edildi
-  rejected,   // Reddedildi
-  expired,    // Süresi doldu
+  draft('draft'), // Taslak
+  sent('sent'), // Gönderildi
+  accepted('accepted'), // Kabul edildi
+  rejected('rejected'), // Reddedildi
+  expired('expired'); // Süresi doldu
+
+  const InvoiceStatus(this.name);
+  final String name;
 }
 
 class Invoice {
@@ -79,7 +82,11 @@ class Invoice {
     };
   }
 
-  factory Invoice.fromMap(Map<String, dynamic> map, Customer customer, List<InvoiceItem> items) {
+  factory Invoice.fromMap(
+    Map<String, dynamic> map,
+    Customer customer,
+    List<InvoiceItem> items,
+  ) {
     return Invoice(
       id: map['id'],
       invoiceNumber: map['invoiceNumber'],
@@ -135,7 +142,8 @@ class Invoice {
     final year = now.year.toString();
     final month = now.month.toString().padLeft(2, '0');
     final day = now.day.toString().padLeft(2, '0');
-    final random = (1000 + DateTime.now().millisecondsSinceEpoch % 9000).toString();
+    final random = (1000 + DateTime.now().millisecondsSinceEpoch % 9000)
+        .toString();
     return 'PF-$year$month$day-$random';
   }
-} 
+}

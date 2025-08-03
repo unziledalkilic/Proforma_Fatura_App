@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "proforma_fatura_app",
+            "cwd": "proforma_fatura_app",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "proforma_fatura_app (profile mode)",
+            "cwd": "proforma_fatura_app",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "proforma_fatura_app (release mode)",
+            "cwd": "proforma_fatura_app",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        }
+    ]
+}

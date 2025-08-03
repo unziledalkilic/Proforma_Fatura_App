@@ -10,18 +10,34 @@ class ProductProvider with ChangeNotifier {
   List<ProductCategory> _categories = [];
   bool _isLoading = false;
   String? _error;
+  int? _currentUserId;
 
   List<Product> get products => _products;
   List<ProductCategory> get categories => _categories;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  // Kullanıcı ID'sini ayarla
+  void setCurrentUser(int userId) {
+    _currentUserId = userId;
+  }
+
   // Ürünleri yükle
   Future<void> loadProducts() async {
+    if (_currentUserId == null) {
+      print('❌ Kullanıcı ID ayarlanmamış!');
+      return;
+    }
+
+    // Eğer zaten yüklüyse tekrar yükleme
+    if (_products.isNotEmpty && !_isLoading) {
+      return;
+    }
+
     _setLoading(true);
     try {
-      print('🔄 Ürünler yükleniyor...');
-      _products = await _postgresService.getAllProducts();
+      print('🔄 Ürünler yükleniyor... (Kullanıcı ID: $_currentUserId)');
+      _products = await _postgresService.getAllProducts(_currentUserId!);
       print('✅ ${_products.length} ürün yüklendi');
       _error = null;
       notifyListeners();
@@ -36,9 +52,14 @@ class ProductProvider with ChangeNotifier {
 
   // Kategorileri yükle
   Future<void> loadCategories() async {
+    if (_currentUserId == null) {
+      print('❌ Kullanıcı ID ayarlanmamış!');
+      return;
+    }
+
     try {
-      print('🔄 Kategoriler yükleniyor...');
-      _categories = await _postgresService.getAllCategories();
+      print('🔄 Kategoriler yükleniyor... (Kullanıcı ID: $_currentUserId)');
+      _categories = await _postgresService.getAllCategories(_currentUserId!);
       print('✅ ${_categories.length} kategori yüklendi');
       _error = null;
       notifyListeners();
@@ -110,9 +131,14 @@ class ProductProvider with ChangeNotifier {
 
   // Ürün sil
   Future<bool> deleteProduct(int id) async {
+    if (_currentUserId == null) {
+      print('❌ Kullanıcı ID ayarlanmamış!');
+      return false;
+    }
+
     _setLoading(true);
     try {
-      await _postgresService.deleteProduct(id);
+      await _postgresService.deleteProduct(id, _currentUserId!);
       _products.removeWhere((product) => product.id == id);
       _error = null;
       notifyListeners();
@@ -127,8 +153,13 @@ class ProductProvider with ChangeNotifier {
 
   // Ürün getir
   Future<Product?> getProductById(int id) async {
+    if (_currentUserId == null) {
+      print('❌ Kullanıcı ID ayarlanmamış!');
+      return null;
+    }
+
     try {
-      return await _postgresService.getProductById(id);
+      return await _postgresService.getProductById(id, _currentUserId!);
     } catch (e) {
       _error = 'Ürün getirilirken hata oluştu: $e';
       return null;
@@ -137,11 +168,38 @@ class ProductProvider with ChangeNotifier {
 
   // Kategori ekle
   Future<bool> addCategory(ProductCategory category) async {
+    if (_currentUserId == null) {
+      print('❌ Kullanıcı ID ayarlanmamış!');
+      return false;
+    }
+
     try {
-      print('🔄 Kategori ekleniyor: ${category.name}');
-      final id = await _postgresService.insertCategory(category);
+      print(
+        '🔄 Kategori ekleniyor: ${category.name} (Kullanıcı ID: $_currentUserId)',
+      );
+
+      // Kategori için rastgele renk oluştur
+      final colors = [
+        '#FF6B6B',
+        '#4ECDC4',
+        '#45B7D1',
+        '#96CEB4',
+        '#FFEAA7',
+        '#DDA0DD',
+        '#98D8C8',
+        '#F7DC6F',
+      ];
+      final randomColor = colors[_categories.length % colors.length];
+
+      final categoryWithColor = category.copyWith(
+        userId: _currentUserId!,
+        color: randomColor,
+        isActive: true,
+      );
+
+      final id = await _postgresService.insertCategory(categoryWithColor);
       if (id != null) {
-        final newCategory = category.copyWith(id: id);
+        final newCategory = categoryWithColor.copyWith(id: id);
         _categories.add(newCategory);
         print(
           '✅ Kategori eklendi. ID: $id, Toplam kategori sayısı: ${_categories.length}',
@@ -187,12 +245,14 @@ class ProductProvider with ChangeNotifier {
   // Loading durumunu ayarla
   void _setLoading(bool loading) {
     _isLoading = loading;
-    notifyListeners();
+    // notifyListeners'ı asenkron olarak çağır
+    Future.microtask(() => notifyListeners());
   }
 
   // Hata mesajını temizle
   void clearError() {
     _error = null;
-    notifyListeners();
+    // notifyListeners'ı asenkron olarak çağır
+    Future.microtask(() => notifyListeners());
   }
 }

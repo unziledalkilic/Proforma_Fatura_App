@@ -1,5 +1,6 @@
 class ProductCategory {
   final int? id;
+  final int userId; // Kullanıcıya özel
   final String name;
   final String? description;
   final String color;
@@ -9,6 +10,7 @@ class ProductCategory {
 
   ProductCategory({
     this.id,
+    required this.userId,
     required this.name,
     this.description,
     this.color = '#2196F3',
@@ -19,6 +21,7 @@ class ProductCategory {
 
   ProductCategory copyWith({
     int? id,
+    int? userId,
     String? name,
     String? description,
     String? color,
@@ -28,6 +31,7 @@ class ProductCategory {
   }) {
     return ProductCategory(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       name: name ?? this.name,
       description: description ?? this.description,
       color: color ?? this.color,
@@ -40,6 +44,7 @@ class ProductCategory {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'user_id': userId,
       'name': name,
       'description': description,
       'color': color,
@@ -52,6 +57,7 @@ class ProductCategory {
   factory ProductCategory.fromMap(Map<String, dynamic> map) {
     return ProductCategory(
       id: map['id'] as int?,
+      userId: map['user_id'] ?? map['userId'],
       name: map['name'] as String,
       description: map['description'] as String?,
       color: map['color'] as String? ?? '#2196F3',

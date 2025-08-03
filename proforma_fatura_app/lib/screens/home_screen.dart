@@ -6,9 +6,11 @@ import '../providers/customer_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/invoice_provider.dart';
 import '../services/currency_service.dart';
+import '../widgets/invoice_stats_widget.dart';
 import 'customers_screen.dart';
 import 'products_screen.dart';
 import 'invoices_screen.dart';
+import 'invoice_detail_screen.dart';
 import 'profile_screen.dart';
 import 'product_form_screen.dart';
 
@@ -48,11 +50,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadInitialData() async {
     try {
-      await Future.wait([
-        context.read<CustomerProvider>().loadCustomers(),
-        context.read<ProductProvider>().loadProducts(),
-        context.read<InvoiceProvider>().loadInvoices(),
-      ]);
+      // Önce kullanıcı giriş durumunu kontrol et
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.currentUser != null &&
+          authProvider.currentUser!.id != null) {
+        // Kullanıcı giriş yapmışsa, ProductProvider'a kullanıcı ID'sini geçir
+        final productProvider = context.read<ProductProvider>();
+        productProvider.setCurrentUser(authProvider.currentUser!.id!);
+
+        await Future.wait([
+          context.read<CustomerProvider>().loadCustomers(),
+          context.read<ProductProvider>().loadProducts(),
+          context.read<InvoiceProvider>().loadInvoices(),
+        ]);
+      } else {
+        // Kullanıcı giriş yapmamışsa sadece müşteri ve fatura verilerini yükle
+        await Future.wait([
+          context.read<CustomerProvider>().loadCustomers(),
+          context.read<InvoiceProvider>().loadInvoices(),
+        ]);
+      }
     } catch (e) {
       debugPrint('Veri yükleme hatası: $e');
     }
@@ -184,7 +201,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     height: 50,
                                     decoration: BoxDecoration(
                                       color: AppConstants.primaryColor
-                                          .withOpacity(0.1),
+                                          .withAlpha(26),
                                       borderRadius: BorderRadius.circular(25),
                                     ),
                                     child: Icon(
@@ -360,13 +377,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               'Ürün Ekle',
                               Icons.add_box,
                               AppConstants.warningColor,
-                              () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const ProductFormScreen(),
-                                  ),
-                                );
+                              () async {
+                                // Kategorilerin yüklendiğinden emin ol
+                                final productProvider = context
+                                    .read<ProductProvider>();
+                                if (productProvider.categories.isEmpty) {
+                                  await productProvider.loadCategories();
+                                }
+
+                                if (mounted) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const ProductFormScreen(),
+                                    ),
+                                  );
+                                }
                               },
                             ),
                           ),
@@ -410,6 +436,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ],
                       ),
                       const SizedBox(height: AppConstants.paddingLarge),
+
+                      // Fatura İstatistikleri
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(
+                            AppConstants.paddingMedium,
+                          ),
+                          child: InvoiceStatsWidget(
+                            invoices: invoiceProvider.invoices,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppConstants.paddingMedium),
 
                       // Son faturalar
                       Text(
@@ -459,7 +498,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     ),
                                   ),
                                   onTap: () {
-                                    // Fatura detayına git
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            InvoiceDetailScreen(
+                                              invoice: invoice,
+                                            ),
+                                      ),
+                                    );
                                   },
                                 ),
                               ),

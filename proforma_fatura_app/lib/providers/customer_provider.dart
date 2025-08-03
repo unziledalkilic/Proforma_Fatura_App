@@ -15,12 +15,23 @@ class CustomerProvider with ChangeNotifier {
 
   // Müşterileri yükle
   Future<void> loadCustomers() async {
+    // Eğer zaten yüklüyse tekrar yükleme
+    if (_customers.isNotEmpty && !_isLoading) {
+      print('📋 Müşteriler zaten yüklü, tekrar yüklenmiyor');
+      return;
+    }
+
+    print('🔄 CustomerProvider: Müşteriler yükleniyor...');
     _setLoading(true);
     try {
       _customers = await _postgresService.getAllCustomers();
+      print('✅ CustomerProvider: ${_customers.length} müşteri yüklendi');
       _error = null;
+      notifyListeners();
     } catch (e) {
+      print('❌ CustomerProvider: Müşteri yükleme hatası: $e');
       _error = 'Müşteriler yüklenirken hata oluştu: $e';
+      notifyListeners();
     } finally {
       _setLoading(false);
     }
@@ -134,12 +145,14 @@ class CustomerProvider with ChangeNotifier {
   // Loading durumunu ayarla
   void _setLoading(bool loading) {
     _isLoading = loading;
-    notifyListeners();
+    // notifyListeners'ı asenkron olarak çağır
+    Future.microtask(() => notifyListeners());
   }
 
   // Hata mesajını temizle
   void clearError() {
     _error = null;
-    notifyListeners();
+    // notifyListeners'ı asenkron olarak çağır
+    Future.microtask(() => notifyListeners());
   }
 }
