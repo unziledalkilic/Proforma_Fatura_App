@@ -1,16 +1,11 @@
-import 'package:postgres/postgres.dart';
-import '../models/user.dart';
 import '../models/customer.dart';
-import '../models/product.dart';
-import '../models/product_category.dart';
-import '../models/invoice.dart';
-import '../models/invoice_item.dart';
 
 class PostgresService {
-  static final PostgresService _instance = PostgresService._internal();
-  factory PostgresService() => _instance;
-  PostgresService._internal();
+  // Geçici in-memory veri
+  static List<Customer> _customers = [];
+  static int _nextId = 1;
 
+<<<<<<< HEAD
   PostgreSQLConnection? _connection;
   bool _isConnected = false;
 
@@ -276,28 +271,66 @@ class PostgresService {
     } catch (e) {
       print('❌ Müşteri güncelleme hatası: $e');
       return false;
+=======
+  // Tüm müşterileri getir
+  Future<List<Customer>> getAllCustomers() async {
+    print('📋 PostgresService: ${_customers.length} müşteri getiriliyor');
+    await Future.delayed(const Duration(milliseconds: 500)); // Simülasyon
+    return List.from(_customers);
+  }
+
+  // Müşteri ekle
+  Future<int> insertCustomer(Customer customer) async {
+    print('📝 PostgresService: Müşteri ekleniyor - ${customer.name}');
+    await Future.delayed(const Duration(milliseconds: 800)); // Simülasyon
+
+    final newCustomer = customer.copyWith(
+      id: _nextId,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    _customers.add(newCustomer);
+    print('✅ PostgresService: Müşteri eklendi - ID: $_nextId');
+
+    return _nextId++;
+  }
+
+  // Müşteri güncelle
+  Future<void> updateCustomer(Customer customer) async {
+    print('✏️ PostgresService: Müşteri güncelleniyor - ${customer.name}');
+    await Future.delayed(const Duration(milliseconds: 600)); // Simülasyon
+
+    final index = _customers.indexWhere((c) => c.id == customer.id);
+    if (index != -1) {
+      _customers[index] = customer.copyWith(updatedAt: DateTime.now());
+      print('✅ PostgresService: Müşteri güncellendi');
+    } else {
+      throw Exception('Müşteri bulunamadı');
     }
   }
 
-  /// Müşteri sil
-  Future<bool> deleteCustomer(int id) async {
-    if (!_isConnected) return false;
-    try {
-      await _connection!.execute(
-        'DELETE FROM customers WHERE id = @id',
-        substitutionValues: {'id': id},
-      );
-      return true;
-    } catch (e) {
-      print('❌ Müşteri silme hatası: $e');
-      return false;
+  // Müşteri sil
+  Future<void> deleteCustomer(int id) async {
+    print('🗑️ PostgresService: Müşteri siliniyor - ID: $id');
+    await Future.delayed(const Duration(milliseconds: 400)); // Simülasyon
+
+    final initialLength = _customers.length;
+    _customers.removeWhere((customer) => customer.id == id);
+    if (_customers.length == initialLength) {
+      throw Exception('Silinecek müşteri bulunamadı');
+>>>>>>> 9edad2e098eae04be983b3a79e53f14538508736
     }
+    print('✅ PostgresService: Müşteri silindi');
   }
 
-  /// Müşteri getir (ID ile)
+  // ID'ye göre müşteri getir
   Future<Customer?> getCustomerById(int id) async {
-    if (!_isConnected) return null;
+    print('🔍 PostgresService: Müşteri getiriliyor - ID: $id');
+    await Future.delayed(const Duration(milliseconds: 300)); // Simülasyon
+
     try {
+<<<<<<< HEAD
       final results = await _connection!.query(
         'SELECT * FROM customers WHERE id = @id',
         substitutionValues: {'id': id},
@@ -316,12 +349,15 @@ class PostgresService {
         );
       }
       return null;
+=======
+      return _customers.firstWhere((customer) => customer.id == id);
+>>>>>>> 9edad2e098eae04be983b3a79e53f14538508736
     } catch (e) {
-      print('❌ Müşteri getirme hatası: $e');
       return null;
     }
   }
 
+<<<<<<< HEAD
   // =====================================================
   // ÜRÜN İŞLEMLERİ
   // =====================================================
@@ -946,6 +982,32 @@ class PostgresService {
     } catch (e) {
       print('❌ Fatura kalemleri hatası: $e');
       return [];
+=======
+  // Test verileri ekle
+  static void addTestData() {
+    if (_customers.isEmpty) {
+      _customers.addAll([
+        Customer(
+          id: _nextId++,
+          name: 'Ahmet Yılmaz',
+          email: 'ahmet@test.com',
+          phone: '+90 532 123 4567',
+          address: 'İstanbul',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+        Customer(
+          id: _nextId++,
+          name: 'Fatma Kaya',
+          email: 'fatma@test.com',
+          phone: '+90 533 987 6543',
+          address: 'Ankara',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ]);
+      print('🧪 Test verileri eklendi: ${_customers.length} müşteri');
+>>>>>>> 9edad2e098eae04be983b3a79e53f14538508736
     }
   }
 }
