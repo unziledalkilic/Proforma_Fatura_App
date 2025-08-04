@@ -1,116 +1,178 @@
 -- =====================================================
--- POSTGRESQL MIGRATION - CURRENCY SÜTUNU EKLEME
+-- POSTGRESQL MIGRATION SCRIPT - KULLANICIYA ÖZEL VERİ YAPISI
 -- =====================================================
 
--- Mevcut products tablosuna currency sütunu ekle
-ALTER TABLE products ADD COLUMN IF NOT EXISTS currency VARCHAR(3) NOT NULL DEFAULT 'TRY';
+-- 1. Mevcut durumu kontrol et
+-- =====================================================
+SELECT 'Mevcut tablo durumu kontrol ediliyor...' as islem;
 
--- Mevcut products tablosunda unit sütununu NOT NULL yap
-ALTER TABLE products ALTER COLUMN unit SET NOT NULL;
-ALTER TABLE products ALTER COLUMN unit SET DEFAULT 'Adet';
+-- Hangi tabloların user_id sütunu var?
+SELECT 
+    table_name,
+    column_name,
+    data_type,
+    is_nullable
+FROM information_schema.columns 
+WHERE table_name IN ('customers', 'products', 'invoices', 'product_categories')
+    AND column_name = 'user_id'
+ORDER BY table_name;
 
--- Mevcut kayıtları güncelle (eğer unit NULL ise)
-UPDATE products SET unit = 'Adet' WHERE unit IS NULL;
+-- =====================================================
+-- 2. user_id sütunlarını ekle (eğer yoksa)
+-- =====================================================
 
--- Mevcut kayıtları güncelle (eğer currency NULL ise)
-UPDATE products SET currency = 'TRY' WHERE currency IS NULL;
+-- Customers tablosuna user_id sütunu ekle
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS user_id INTEGER;
 
--- Users tablosundan tax_office sütununu kaldır (eğer varsa)
-ALTER TABLE users DROP COLUMN IF EXISTS tax_office;
+-- Products tablosuna user_id sütunu ekle
+ALTER TABLE products ADD COLUMN IF NOT EXISTS user_id INTEGER;
 
--- Ürün kategorileri tablosu oluştur
-CREATE TABLE IF NOT EXISTS product_categories (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    description TEXT,
-    color VARCHAR(7) DEFAULT '#2196F3', -- Hex renk kodu
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- Invoices tablosuna user_id sütunu ekle
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS user_id INTEGER;
 
--- Varsayılan kategorileri ekle
-INSERT INTO product_categories (name, description, color) VALUES
-('Elektronik', 'Elektronik ürünler', '#FF5722'),
-('Giyim', 'Giyim ve aksesuar ürünleri', '#4CAF50'),
-('Ev & Yaşam', 'Ev ve yaşam ürünleri', '#2196F3'),
-('Spor', 'Spor ve fitness ürünleri', '#FF9800'),
-('Kitap', 'Kitap ve yayınlar', '#9C27B0'),
-('Gıda', 'Gıda ve içecek ürünleri', '#795548'),
-('Kozmetik', 'Kozmetik ve kişisel bakım', '#E91E63'),
-('Diğer', 'Diğer ürünler', '#607D8B')
-ON CONFLICT (name) DO NOTHING;
+-- Product categories tablosuna user_id sütunu ekle
+ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS user_id INTEGER;
 
--- Products tablosuna category_id sütunu ekle
-ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES product_categories(id) ON DELETE SET NULL;
+-- =====================================================
+-- 3. Mevcut verileri güncelle
+-- =====================================================
 
--- Mevcut ürünleri "Diğer" kategorisine ata
-UPDATE products SET category_id = (SELECT id FROM product_categories WHERE name = 'Diğer' LIMIT 1) WHERE category_id IS NULL;
+-- Hangi kullanıcılar var?
+SELECT 'Mevcut kullanıcılar:' as islem;
+SELECT id, username, email FROM users ORDER BY id;
 
--- Kategori indeksi oluştur
-CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
+-- Mevcut verileri varsayılan kullanıcıya ata (ilk kullanıcı)
+UPDATE customers SET user_id = (SELECT id FROM users ORDER BY id LIMIT 1) WHERE user_id IS NULL;
+UPDATE products SET user_id = (SELECT id FROM users ORDER BY id LIMIT 1) WHERE user_id IS NULL;
+UPDATE invoices SET user_id = (SELECT id FROM users ORDER BY id LIMIT 1) WHERE user_id IS NULL;
+UPDATE product_categories SET user_id = (SELECT id FROM users ORDER BY id LIMIT 1) WHERE user_id IS NULL;
 
--- Kategori adı için indeks
-CREATE INDEX IF NOT EXISTS idx_product_categories_name ON product_categories(name);
+-- =====================================================
+-- 4. NOT NULL kısıtlamaları ekle
+-- =====================================================
 
--- PostgreSQL Migration Script - Ürünler Kullanıcıya Özel Hale Getiriliyor
--- Bu script mevcut PostgreSQL veritabanını günceller
-
--- Ürünler tablosuna user_id sütunu ekle
-ALTER TABLE products ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
-
--- Mevcut ürünleri varsayılan kullanıcıya ata (ilk kullanıcı)
-UPDATE products SET user_id = (SELECT id FROM users LIMIT 1) WHERE user_id IS NULL;
-
--- user_id sütununu NOT NULL yap
+ALTER TABLE customers ALTER COLUMN user_id SET NOT NULL;
 ALTER TABLE products ALTER COLUMN user_id SET NOT NULL;
+ALTER TABLE invoices ALTER COLUMN user_id SET NOT NULL;
+ALTER TABLE product_categories ALTER COLUMN user_id SET NOT NULL;
 
--- Ürünler için user_id indeksi oluştur (performans için)
+-- =====================================================
+-- 5. Foreign key kısıtlamaları ekle
+-- =====================================================
+
+-- Mevcut foreign key'leri kontrol et
+SELECT 'Mevcut foreign key kısıtlamaları:' as islem;
+SELECT 
+    tc.table_name, 
+    tc.constraint_name, 
+    tc.constraint_type,
+    kcu.column_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu 
+    ON tc.constraint_name = kcu.constraint_name
+WHERE tc.table_name IN ('customers', 'products', 'invoices', 'product_categories')
+    AND tc.constraint_type = 'FOREIGN KEY'
+    AND kcu.column_name = 'user_id';
+
+-- Foreign key'leri ekle (eğer yoksa)
+DO $$
+BEGIN
+    -- Customers için
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_customers_user'
+    ) THEN
+        ALTER TABLE customers 
+        ADD CONSTRAINT fk_customers_user 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+    END IF;
+    
+    -- Products için
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_products_user'
+    ) THEN
+        ALTER TABLE products 
+        ADD CONSTRAINT fk_products_user 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+    END IF;
+    
+    -- Invoices için
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_invoices_user'
+    ) THEN
+        ALTER TABLE invoices 
+        ADD CONSTRAINT fk_invoices_user 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+    END IF;
+    
+    -- Product categories için
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_product_categories_user'
+    ) THEN
+        ALTER TABLE product_categories 
+        ADD CONSTRAINT fk_product_categories_user 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
+-- =====================================================
+-- 6. İndeksler oluştur
+-- =====================================================
+
+CREATE INDEX IF NOT EXISTS idx_customers_user_id ON customers(user_id);
 CREATE INDEX IF NOT EXISTS idx_products_user_id ON products(user_id);
-
--- Kategoriler de kullanıcıya özel olsun
-ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
-
--- Mevcut kategorileri varsayılan kullanıcıya ata
-UPDATE product_categories SET user_id = (SELECT id FROM users LIMIT 1) WHERE user_id IS NULL;
-
--- Kategoriler için user_id indeksi oluştur
+CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id);
 CREATE INDEX IF NOT EXISTS idx_product_categories_user_id ON product_categories(user_id);
 
--- Ürünler tablosunda user_id ve name kombinasyonu için unique constraint
-CREATE UNIQUE INDEX IF NOT EXISTS idx_products_user_name_unique ON products(user_id, name);
-
--- Kategoriler tablosunda user_id ve name kombinasyonu için unique constraint
-CREATE UNIQUE INDEX IF NOT EXISTS idx_product_categories_user_name_unique ON product_categories(user_id, name);
-
 -- =====================================================
--- INVOICE SYSTEM REVERT - User yerine Customer kullanımına geri dönüş
+-- 7. Sonuçları kontrol et
 -- =====================================================
 
--- Invoices tablosundan user_id sütununu kaldır
-ALTER TABLE invoices DROP COLUMN IF EXISTS user_id;
+SELECT 'Migration tamamlandı! Sonuçlar:' as islem;
 
--- user_id ile ilgili indeksleri kaldır
-DROP INDEX IF EXISTS idx_invoices_user_id;
+-- Kullanıcı başına veri sayısı
+SELECT 
+    'customers' as table_name,
+    user_id,
+    COUNT(*) as record_count
+FROM customers 
+GROUP BY user_id
+UNION ALL
+SELECT 
+    'products' as table_name,
+    user_id,
+    COUNT(*) as record_count
+FROM products 
+GROUP BY user_id
+UNION ALL
+SELECT 
+    'invoices' as table_name,
+    user_id,
+    COUNT(*) as record_count
+FROM invoices 
+GROUP BY user_id
+UNION ALL
+SELECT 
+    'product_categories' as table_name,
+    user_id,
+    COUNT(*) as record_count
+FROM product_categories 
+GROUP BY user_id
+ORDER BY table_name, user_id;
 
--- Debug için mevcut verileri kontrol et
-SELECT 'Products count:' as info, COUNT(*) as count FROM products;
-SELECT 'Categories count:' as info, COUNT(*) as count FROM product_categories;
-SELECT 'Users count:' as info, COUNT(*) as count FROM users;
-SELECT 'Invoices count:' as info, COUNT(*) as count FROM invoices;
+-- Örnek veriler
+SELECT 'Örnek müşteriler:' as islem;
+SELECT id, name, email, user_id FROM customers LIMIT 5;
 
--- Tablo yapılarını kontrol et
-SELECT 'products' as table_name, column_name, data_type, is_nullable, column_default 
-FROM information_schema.columns 
-WHERE table_name = 'products' 
-ORDER BY ordinal_position;
+SELECT 'Örnek faturalar:' as islem;
+SELECT id, invoice_number, user_id, status FROM invoices LIMIT 5;
 
-SELECT 'users' as table_name, column_name, data_type, is_nullable, column_default 
-FROM information_schema.columns 
-WHERE table_name = 'users' 
-ORDER BY ordinal_position;
+SELECT 'Örnek ürünler:' as islem;
+SELECT id, name, price, user_id FROM products LIMIT 5;
 
-SELECT 'invoices' as table_name, column_name, data_type, is_nullable, column_default 
-FROM information_schema.columns 
-WHERE table_name = 'invoices' 
-ORDER BY ordinal_position; 
+-- =====================================================
+-- MIGRATION TAMAMLANDI
+-- ===================================================== 
