@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/customer_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/invoice_provider.dart';
+
 import '../services/currency_service.dart';
 import '../widgets/invoice_stats_widget.dart';
 import 'customers_screen.dart';
@@ -13,6 +14,9 @@ import 'invoices_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'profile_screen.dart';
 import 'product_form_screen.dart';
+import 'invoice_form_screen.dart';
+import 'add_customer_screen.dart';
+import 'pdf_preview_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -58,10 +62,18 @@ class _HomeScreenState extends State<HomeScreen> {
         final productProvider = context.read<ProductProvider>();
         productProvider.setCurrentUser(authProvider.currentUser!.id!);
 
+        // CustomerProvider'a kullanıcı ID'sini geçir
+        final customerProvider = context.read<CustomerProvider>();
+        customerProvider.setCurrentUser(authProvider.currentUser!.id!);
+
+        // InvoiceProvider'a kullanıcı ID'sini geçir
+        final invoiceProvider = context.read<InvoiceProvider>();
+        invoiceProvider.setCurrentUser(authProvider.currentUser!.id!);
+
         await Future.wait([
-          context.read<CustomerProvider>().loadCustomers(),
+          customerProvider.loadCustomers(),
           context.read<ProductProvider>().loadProducts(),
-          context.read<InvoiceProvider>().loadInvoices(),
+          invoiceProvider.loadInvoices(),
         ]);
       } else {
         // Kullanıcı giriş yapmamışsa sadece müşteri ve fatura verilerini yükle
@@ -127,20 +139,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // Başlangıçta varsayılan değerleri göster
+    _exchangeRates = {'USD': 34.50, 'EUR': 37.20, 'GBP': 43.80, 'JPY': 0.23};
+    _isLoadingRates = false;
+    // Sonra gerçek verileri yükle
     _loadExchangeRates();
   }
 
   Future<void> _loadExchangeRates() async {
     try {
+      print('🔄 Dashboard: Doviz kurlari yukleniyor...');
       final rates = await CurrencyService.getExchangeRates();
-      setState(() {
-        _exchangeRates = rates;
-        _isLoadingRates = false;
-      });
+      print('✅ Dashboard: Doviz kurlari alindi: $rates');
+
+      // Widget hala aktif mi kontrol et
+      if (mounted) {
+        setState(() {
+          _exchangeRates = rates;
+          _isLoadingRates = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoadingRates = false;
-      });
+      print('❌ Dashboard: Doviz kurlari yukleme hatasi: $e');
+
+      // Widget hala aktif mi kontrol et
+      if (mounted) {
+        setState(() {
+          _isLoadingRates = false;
+        });
+      }
     }
   }
 
@@ -151,10 +178,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: const Text(AppConstants.homeTitle),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.help_outline),
             onPressed: () {
-              // Ayarlar sayfasına git
+              _showAppInfoDialog(context);
             },
+            tooltip: 'Uygulama Hakkında',
           ),
         ],
       ),
@@ -264,10 +292,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           IconButton(
                             icon: const Icon(Icons.refresh),
                             onPressed: () {
-                              setState(() {
-                                _isLoadingRates = true;
-                              });
-                              _loadExchangeRates();
+                              if (mounted) {
+                                setState(() {
+                                  _isLoadingRates = true;
+                                });
+                                _loadExchangeRates();
+                              }
                             },
                           ),
                         ],
@@ -285,54 +315,80 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       else
                         Column(
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildCurrencyCard(
-                                    'USD',
-                                    'Amerikan Doları',
-                                    _exchangeRates['USD'] ?? 0,
-                                    Icons.attach_money,
-                                    AppConstants.primaryColor,
+                            // Cache durumu ve son güncelleme
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.blue[200]!,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.info_outline,
+                                    color: Colors.blue[600],
+                                    size: 18,
                                   ),
-                                ),
-                                const SizedBox(
-                                  width: AppConstants.paddingSmall,
-                                ),
-                                Expanded(
-                                  child: _buildCurrencyCard(
-                                    'EUR',
-                                    'Euro',
-                                    _exchangeRates['EUR'] ?? 0,
-                                    Icons.euro,
-                                    AppConstants.successColor,
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'TCMB güncel döviz kurları',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.blue[700],
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Text(
+                                    'Son güncelleme: ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.blue[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                             const SizedBox(height: AppConstants.paddingSmall),
-                            Row(
+
+                            // Döviz kartları alt alta
+                            Column(
                               children: [
-                                Expanded(
-                                  child: _buildCurrencyCard(
-                                    'GBP',
-                                    'İngiliz Sterlini',
-                                    _exchangeRates['GBP'] ?? 0,
-                                    Icons.currency_pound,
-                                    AppConstants.warningColor,
-                                  ),
+                                _buildDetailedCurrencyCard(
+                                  'USD',
+                                  'Amerikan Doları',
+                                  _exchangeRates['USD'] ?? 0,
+                                  Colors.purple,
                                 ),
-                                const SizedBox(
-                                  width: AppConstants.paddingSmall,
+                                const SizedBox(height: 4),
+                                _buildDetailedCurrencyCard(
+                                  'EUR',
+                                  'Euro',
+                                  _exchangeRates['EUR'] ?? 0,
+                                  Colors.green,
                                 ),
-                                Expanded(
-                                  child: _buildCurrencyCard(
-                                    'JPY',
-                                    'Japon Yeni',
-                                    _exchangeRates['JPY'] ?? 0,
-                                    Icons.currency_yen,
-                                    AppConstants.errorColor,
-                                  ),
+                                const SizedBox(height: 4),
+                                _buildDetailedCurrencyCard(
+                                  'GBP',
+                                  'İngiliz Sterlini',
+                                  _exchangeRates['GBP'] ?? 0,
+                                  Colors.orange,
+                                ),
+                                const SizedBox(height: 4),
+                                _buildDetailedCurrencyCard(
+                                  'JPY',
+                                  'Japon Yeni',
+                                  _exchangeRates['JPY'] ?? 0,
+                                  Colors.red,
                                 ),
                               ],
                             ),
@@ -341,99 +397,140 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: AppConstants.paddingLarge),
 
                       // Hızlı işlemler
-                      Text(
-                        'Hızlı İşlemler',
-                        style: AppConstants.subheadingStyle,
-                      ),
-                      const SizedBox(height: AppConstants.paddingSmall),
+                      Container(
+                        padding: const EdgeInsets.all(
+                          AppConstants.paddingMedium,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              AppConstants.primaryColor.withOpacity(0.1),
+                              AppConstants.primaryColor.withOpacity(0.05),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppConstants.primaryColor.withOpacity(0.2),
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppConstants.primaryColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.flash_on,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Hızlı İşlemler',
+                                  style: AppConstants.subheadingStyle.copyWith(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppConstants.paddingMedium),
 
-                      // Hızlı işlem butonları
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildQuickActionButton(
-                              'Yeni Fatura',
-                              Icons.receipt_long,
-                              AppConstants.primaryColor,
-                              () {
-                                // Yeni fatura oluştur
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: AppConstants.paddingSmall),
-                          Expanded(
-                            child: _buildQuickActionButton(
-                              'Müşteri Ekle',
-                              Icons.person_add,
-                              AppConstants.successColor,
-                              () {
-                                // Müşteri ekle
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: AppConstants.paddingSmall),
-                          Expanded(
-                            child: _buildQuickActionButton(
-                              'Ürün Ekle',
-                              Icons.add_box,
-                              AppConstants.warningColor,
-                              () async {
-                                // Kategorilerin yüklendiğinden emin ol
-                                final productProvider = context
-                                    .read<ProductProvider>();
-                                if (productProvider.categories.isEmpty) {
-                                  await productProvider.loadCategories();
-                                }
+                            // Ana işlemler (2x2 grid)
+                            GridView.count(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 1.2,
+                              children: [
+                                _buildModernQuickActionButton(
+                                  'Yeni Fatura',
+                                  Icons.receipt_long,
+                                  AppConstants.primaryColor,
+                                  () async {
+                                    final productProvider = context
+                                        .read<ProductProvider>();
+                                    final customerProvider = context
+                                        .read<CustomerProvider>();
 
-                                if (mounted) {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const ProductFormScreen(),
-                                    ),
-                                  );
-                                }
-                              },
+                                    if (productProvider.categories.isEmpty) {
+                                      await productProvider.loadCategories();
+                                    }
+
+                                    if (customerProvider.customers.isEmpty) {
+                                      await customerProvider.loadCustomers();
+                                    }
+
+                                    if (mounted) {
+                                      _showNewInvoiceOptions(context);
+                                    }
+                                  },
+                                ),
+                                _buildModernQuickActionButton(
+                                  'Müşteri Ekle',
+                                  Icons.person_add,
+                                  AppConstants.successColor,
+                                  () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const AddCustomerScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                _buildModernQuickActionButton(
+                                  'Ürün Ekle',
+                                  Icons.add_box,
+                                  AppConstants.warningColor,
+                                  () async {
+                                    final productProvider = context
+                                        .read<ProductProvider>();
+                                    if (productProvider.categories.isEmpty) {
+                                      await productProvider.loadCategories();
+                                    }
+
+                                    if (mounted) {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const ProductFormScreen(),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                ),
+                                _buildModernQuickActionButton(
+                                  'Fatura Ara',
+                                  Icons.search,
+                                  AppConstants.errorColor,
+                                  () {
+                                    final homeScreen = context
+                                        .findAncestorStateOfType<
+                                          _HomeScreenState
+                                        >();
+                                    if (homeScreen != null) {
+                                      homeScreen.setState(() {
+                                        homeScreen._currentIndex = 3;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppConstants.paddingSmall),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildQuickActionButton(
-                              'Fatura Ara',
-                              Icons.search,
-                              AppConstants.errorColor,
-                              () {
-                                // Fatura ara
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: AppConstants.paddingSmall),
-                          Expanded(
-                            child: _buildQuickActionButton(
-                              'Raporlar',
-                              Icons.analytics,
-                              AppConstants.accentColor,
-                              () {
-                                // Raporlar
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: AppConstants.paddingSmall),
-                          Expanded(
-                            child: _buildQuickActionButton(
-                              'Hesap Makinesi',
-                              Icons.calculate,
-                              AppConstants.secondaryColor,
-                              () {
-                                // Hesap makinesi
-                              },
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       const SizedBox(height: AppConstants.paddingLarge),
 
@@ -519,46 +616,366 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildCurrencyCard(
+  Widget _buildDetailedCurrencyCard(
     String currency,
     String title,
     double rate,
-    IconData icon,
     Color color,
   ) {
     return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       child: Padding(
-        padding: const EdgeInsets.all(AppConstants.paddingSmall),
-        child: Column(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
           children: [
-            Icon(icon, size: 24, color: color),
-            const SizedBox(height: 4),
-            Text(
-              CurrencyService.formatCurrency(rate, currency),
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+            // Para birimi simgesi
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  _getCurrencySymbol(currency),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              title,
-              style: AppConstants.captionStyle.copyWith(fontSize: 11),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '1 TRY = ${rate.toStringAsFixed(4)} $currency',
-              style: AppConstants.captionStyle.copyWith(
-                fontSize: 10,
-                color: AppConstants.textSecondary,
+            const SizedBox(width: 12),
+
+            // Para birimi adı ve kur bilgisi
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '₺${rate.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ],
               ),
-              textAlign: TextAlign.center,
+            ),
+
+            // Dönüşüm oranı
+            Text(
+              '1 TRY = ${(1 / rate).toStringAsFixed(3)} $currency',
+              style: const TextStyle(fontSize: 9, color: Colors.grey),
+              textAlign: TextAlign.right,
             ),
           ],
         ),
       ),
+    );
+  }
+
+  String _getCurrencySymbol(String code) {
+    switch (code.toUpperCase()) {
+      case 'USD':
+        return '\$';
+      case 'EUR':
+        return '€';
+      case 'GBP':
+        return '£';
+      case 'JPY':
+        return '¥';
+      default:
+        return code;
+    }
+  }
+
+  void _showAppInfoDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: AppConstants.primaryColor,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Proforma Fatura Uygulaması',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Misyon
+                _buildInfoSection(
+                  '🎯 Misyonumuz',
+                  'Küçük ve orta ölçekli işletmelerin proforma fatura yönetim süreçlerini dijitalleştirerek, '
+                      'zaman tasarrufu sağlamak ve iş süreçlerini optimize etmek. '
+                      'Kullanıcı dostu arayüz ile karmaşık proforma fatura işlemlerini basitleştirmek.',
+                ),
+                const SizedBox(height: 16),
+
+                // Vizyon
+                _buildInfoSection(
+                  '🚀 Vizyonumuz',
+                  'Güvenilir ve kullanıcı dostu proforma fatura yönetim platformu olmak. '
+                      'Teknoloji ile iş süreçlerini birleştirerek, işletmelerin büyümesine katkıda bulunmak.',
+                ),
+                const SizedBox(height: 16),
+
+                // Nasıl Kullanılır
+                _buildInfoSection(
+                  '📖 Nasıl Kullanılır?',
+                  '• Müşteriler: Müşteri bilgilerini ekleyin ve yönetin\n'
+                      '• Ürünler: Ürün kataloğunuzu oluşturun\n'
+                      '• Proforma Faturalar: Hızlıca proforma fatura oluşturun\n'
+                      '• Döviz Kurları: Güncel kurları takip edin',
+                ),
+                const SizedBox(height: 16),
+
+                // Özellikler
+                _buildInfoSection(
+                  '✨ Özellikler',
+                  '• 📱 Mobil Uyumlu Arayüz\n'
+                      '• 💾 Otomatik Veri Yedekleme\n'
+                      '• 📊 Detaylı Raporlama\n'
+                      '• 🔄 Gerçek Zamanlı Döviz Kurları\n'
+                      '• 📄 PDF Proforma Fatura Oluşturma\n'
+                      '• 🔍 Gelişmiş Arama ve Filtreleme',
+                ),
+                const SizedBox(height: 16),
+
+                // İletişim
+                _buildInfoSection(
+                  '📞 Destek',
+                  'Teknik destek ve önerileriniz için bizimle iletişime geçebilirsiniz.',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'Anladım',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: Colors.white,
+          elevation: 8,
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoSection(String title, String content) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          content,
+          style: const TextStyle(
+            fontSize: 14,
+            color: Colors.black54,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showNewInvoiceOptions(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                Icons.receipt_long,
+                color: AppConstants.primaryColor,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Yeni Proforma Fatura',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Proforma fatura oluşturmak için bir seçenek seçin:',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const InvoiceFormScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.edit),
+              label: const Text('Fatura Oluştur'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _showPdfTemplatePreview(context);
+              },
+              icon: const Icon(Icons.picture_as_pdf),
+              label: const Text('PDF Şablonunu Görüntüle'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppConstants.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showPdfTemplatePreview(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                Icons.picture_as_pdf,
+                color: AppConstants.primaryColor,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'PDF Şablonu',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                height: 200,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    color: Colors.grey[100],
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.picture_as_pdf,
+                          size: 48,
+                          color: AppConstants.primaryColor,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'PROFORMA FATURA',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppConstants.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Profesyonel PDF Şablonu',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Bu şablon ile oluşturulacak PDF dosyası:\n'
+                '• Şirket logosu ve bilgileri\n'
+                '• Müşteri bilgileri\n'
+                '• Ürün listesi ve fiyatları\n'
+                '• Toplam tutarlar ve vergiler\n'
+                '• Profesyonel tasarım',
+                style: TextStyle(fontSize: 14),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Kapat'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const InvoiceFormScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Fatura Oluştur'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppConstants.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        );
+      },
     );
   }
 
@@ -589,6 +1006,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildModernQuickActionButton(
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onPressed,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color, color.withOpacity(0.8)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, size: 28, color: Colors.white),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

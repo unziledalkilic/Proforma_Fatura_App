@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:io';
 import '../constants/app_constants.dart';
 import '../providers/invoice_provider.dart';
+import '../services/pdf_service.dart';
 import 'invoice_form_screen.dart';
 import 'invoice_detail_screen.dart';
 
@@ -72,33 +74,6 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             widget.onBackToHome?.call();
           },
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              print('🔄 + butonuna basıldı (AppBar)');
-              try {
-                print('🔄 Navigator.push başlıyor...');
-                final result = await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) {
-                      print('🔄 InvoiceFormScreen builder çağrıldı');
-                      return const InvoiceFormScreen();
-                    },
-                  ),
-                );
-                print('✅ Navigator.push tamamlandı, result: $result');
-                if (result == true && mounted) {
-                  print('🔄 InvoiceProvider.loadInvoices çağrılıyor');
-                  context.read<InvoiceProvider>().loadInvoices();
-                  print('✅ InvoiceProvider.loadInvoices tamamlandı');
-                }
-              } catch (e) {
-                print('❌ + buton hatası: $e');
-              }
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -337,6 +312,16 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                                   ),
                                 ),
                                 const PopupMenuItem(
+                                  value: 'pdf',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.picture_as_pdf, color: Colors.orange),
+                                      SizedBox(width: 8),
+                                      Text('PDF İndir'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
                                   value: 'delete',
                                   child: Row(
                                     children: [
@@ -401,6 +386,9 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       case 'edit':
         await _editInvoice(invoice);
         break;
+      case 'pdf':
+        await _generatePdf(invoice);
+        break;
       case 'delete':
         await _deleteInvoice(invoice);
         break;
@@ -419,6 +407,63 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       }
     } catch (e) {
       print('❌ Fatura düzenleme hatası: $e');
+    }
+  }
+
+  Future<void> _generatePdf(dynamic invoice) async {
+    try {
+      // Loading göster
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('PDF oluşturuluyor...'),
+            ],
+          ),
+        ),
+      );
+
+      // PDF oluştur
+      final pdfService = PdfService();
+      final filePath = await pdfService.generateInvoicePdf(invoice);
+
+      // Loading dialog'u kapat
+      Navigator.of(context).pop();
+
+      // Başarı mesajı göster
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF başarıyla oluşturuldu: $filePath'),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'Dosyayı Aç',
+              onPressed: () {
+                // TODO: Dosyayı açma işlemi
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // Loading dialog'u kapat
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Hata mesajı göster
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF oluşturulurken hata oluştu: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

@@ -10,8 +10,8 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  // ProductProvider'a kullanıcı ID'sini geçirmek için callback
-  Function(int)? onUserLogin;
+  // Multiple providers'a kullanıcı ID'sini geçirmek için callback listesi
+  Set<Function(int)> _onUserLoginCallbacks = {};
 
   User? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
@@ -21,6 +21,16 @@ class AuthProvider extends ChangeNotifier {
 
   // PostgreSQL servisi
   final PostgresService _postgresService = PostgresService();
+
+  /// Kullanıcı giriş callback'ini ekle
+  void addUserLoginCallback(Function(int) callback) {
+    _onUserLoginCallbacks.add(callback);
+  }
+
+  /// Tüm callback'leri temizle
+  void clearUserLoginCallbacks() {
+    _onUserLoginCallbacks.clear();
+  }
 
   /// Uygulama başlangıcında PostgreSQL bağlantısını kur
   Future<void> initializeDatabase() async {
@@ -117,9 +127,11 @@ class AuthProvider extends ChangeNotifier {
           _isLoading = false;
           notifyListeners();
 
-          // ProductProvider'a kullanıcı ID'sini geçir
-          if (onUserLogin != null && user.id != null) {
-            onUserLogin!(user.id!);
+          // Tüm callback'leri çağır
+          for (final callback in _onUserLoginCallbacks) {
+            if (user.id != null) {
+              callback(user.id!);
+            }
           }
 
           return true;
@@ -147,16 +159,19 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     _currentUser = null;
     _error = null;
+    clearUserLoginCallbacks(); // Callback'leri temizle
     notifyListeners();
   }
 
   /// Kullanıcı giriş durumunu kontrol et (uygulama başlangıcında çağrılır)
   Future<void> checkLoginStatus() async {
-    // Eğer zaten giriş yapmışsa, ProductProvider'a kullanıcı ID'sini geçir
+    // Eğer zaten giriş yapmışsa, tüm provider'lara kullanıcı ID'sini geçir
     if (_currentUser != null &&
         _currentUser!.id != null &&
-        onUserLogin != null) {
-      onUserLogin!(_currentUser!.id!);
+        _onUserLoginCallbacks.isNotEmpty) {
+      for (final callback in _onUserLoginCallbacks) {
+        callback(_currentUser!.id!);
+      }
     }
   }
 

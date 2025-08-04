@@ -179,6 +179,7 @@ class InvoiceStatsWidget extends StatelessWidget {
         return Expanded(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 width: 20,
@@ -188,16 +189,22 @@ class InvoiceStatsWidget extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                month,
-                style: AppConstants.captionStyle,
-                textAlign: TextAlign.center,
+              const SizedBox(height: 2),
+              Flexible(
+                child: Text(
+                  month,
+                  style: AppConstants.captionStyle,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              Text(
-                '₺${amount.toStringAsFixed(0)}',
-                style: AppConstants.captionStyle,
-                textAlign: TextAlign.center,
+              Flexible(
+                child: Text(
+                  '₺${amount.toStringAsFixed(0)}',
+                  style: AppConstants.captionStyle,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),

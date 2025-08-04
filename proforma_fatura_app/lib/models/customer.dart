@@ -1,5 +1,6 @@
 class Customer {
   final int? id;
+  final int? userId; // Kullanıcı ID'si eklendi
   final String name;
   final String? email;
   final String? phone;
@@ -11,6 +12,7 @@ class Customer {
 
   Customer({
     this.id,
+    this.userId, // Kullanıcı ID'si eklendi
     required this.name,
     this.email,
     this.phone,
@@ -24,6 +26,7 @@ class Customer {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'userId': userId, // Kullanıcı ID'si eklendi
       'name': name,
       'email': email,
       'phone': phone,
@@ -38,6 +41,7 @@ class Customer {
   factory Customer.fromMap(Map<String, dynamic> map) {
     return Customer(
       id: map['id'],
+      userId: map['userId'], // Kullanıcı ID'si eklendi
       name: map['name'],
       email: map['email'],
       phone: map['phone'],
@@ -51,6 +55,7 @@ class Customer {
 
   Customer copyWith({
     int? id,
+    int? userId, // Kullanıcı ID'si eklendi
     String? name,
     String? email,
     String? phone,
@@ -62,6 +67,7 @@ class Customer {
   }) {
     return Customer(
       id: id ?? this.id,
+      userId: userId ?? this.userId, // Kullanıcı ID'si eklendi
       name: name ?? this.name,
       email: email ?? this.email,
       phone: phone ?? this.phone,

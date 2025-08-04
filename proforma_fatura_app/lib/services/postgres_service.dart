@@ -1,11 +1,16 @@
+import 'package:postgres/postgres.dart';
+import '../models/user.dart';
 import '../models/customer.dart';
+import '../models/product.dart';
+import '../models/product_category.dart';
+import '../models/invoice.dart';
+import '../models/invoice_item.dart';
 
 class PostgresService {
-  // Geçici in-memory veri
-  static List<Customer> _customers = [];
-  static int _nextId = 1;
+  static final PostgresService _instance = PostgresService._internal();
+  factory PostgresService() => _instance;
+  PostgresService._internal();
 
-<<<<<<< HEAD
   PostgreSQLConnection? _connection;
   bool _isConnected = false;
 
@@ -32,6 +37,16 @@ class PostgresService {
       if (stringValue.isEmpty ||
           stringValue == 'null' ||
           stringValue == 'undefined') {
+        return DateTime.now();
+      }
+
+      // Status gibi enum değerlerini kontrol et
+      if (stringValue == 'draft' ||
+          stringValue == 'sent' ||
+          stringValue == 'accepted' ||
+          stringValue == 'rejected' ||
+          stringValue == 'expired') {
+        print('⚠️ Tarih parse edilmeye çalışılan değer enum: $stringValue');
         return DateTime.now();
       }
 
@@ -201,13 +216,14 @@ class PostgresService {
   // MÜŞTERİ İŞLEMLERİ
   // =====================================================
 
-  /// Müşteri ekle
-  Future<int?> insertCustomer(Customer customer) async {
+  /// Müşteri ekle (kullanıcıya özel)
+  Future<int?> insertCustomer(Customer customer, int userId) async {
     if (!_isConnected) return null;
     try {
       final results = await _connection!.query(
-        'INSERT INTO customers (name, email, phone, address, tax_number) VALUES (@name, @email, @phone, @address, @taxNumber) RETURNING id',
+        'INSERT INTO customers (user_id, name, email, phone, address, tax_number) VALUES (@userId, @name, @email, @phone, @address, @taxNumber) RETURNING id',
         substitutionValues: {
+          'userId': userId,
           'name': customer.name,
           'email': customer.email,
           'phone': customer.phone,
@@ -225,27 +241,35 @@ class PostgresService {
     }
   }
 
-  /// Tüm müşterileri getir
-  Future<List<Customer>> getAllCustomers() async {
+  /// Tüm müşterileri getir (kullanıcıya özel)
+  Future<List<Customer>> getAllCustomers(int userId) async {
     if (!_isConnected) return [];
     try {
+      print('🔄 Müşteriler getiriliyor (Kullanıcı ID: $userId)');
       final results = await _connection!.query(
-        'SELECT * FROM customers ORDER BY name',
+        'SELECT * FROM customers WHERE user_id = @userId ORDER BY name',
+        substitutionValues: {'userId': userId},
       );
-      return results
-          .map(
-            (row) => Customer(
-              id: row[0] as int,
-              name: _safeString(row[1]) ?? '',
-              email: _safeString(row[2]),
-              phone: _safeString(row[3]),
-              address: _safeString(row[4]),
-              taxNumber: _safeString(row[5]),
-              createdAt: _parseDateTime(row[6]),
-              updatedAt: _parseDateTime(row[7]),
-            ),
-          )
-          .toList();
+
+      print('📊 Bulunan müşteri sayısı: ${results.length}');
+
+      final customers = results.map((row) {
+        print('🔍 Müşteri verisi: ${row.toList()}');
+        return Customer(
+          id: row[0] as int,
+          name: _safeString(row[1]) ?? '', // name sütunu
+          email: _safeString(row[2]), // email sütunu
+          phone: _safeString(row[3]), // phone sütunu
+          address: _safeString(row[4]), // address sütunu
+          taxNumber: _safeString(row[5]), // tax_number sütunu
+          createdAt: _parseDateTime(row[6]), // created_at sütunu
+          updatedAt: _parseDateTime(row[7]), // updated_at sütunu
+          userId: row[8] as int, // user_id sütunu (sona eklendi)
+        );
+      }).toList();
+
+      print('✅ Müşteriler başarıyla getirildi: ${customers.length} adet');
+      return customers;
     } catch (e) {
       print('❌ Müşteri listesi hatası: $e');
       return [];
@@ -271,66 +295,28 @@ class PostgresService {
     } catch (e) {
       print('❌ Müşteri güncelleme hatası: $e');
       return false;
-=======
-  // Tüm müşterileri getir
-  Future<List<Customer>> getAllCustomers() async {
-    print('📋 PostgresService: ${_customers.length} müşteri getiriliyor');
-    await Future.delayed(const Duration(milliseconds: 500)); // Simülasyon
-    return List.from(_customers);
-  }
-
-  // Müşteri ekle
-  Future<int> insertCustomer(Customer customer) async {
-    print('📝 PostgresService: Müşteri ekleniyor - ${customer.name}');
-    await Future.delayed(const Duration(milliseconds: 800)); // Simülasyon
-
-    final newCustomer = customer.copyWith(
-      id: _nextId,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-
-    _customers.add(newCustomer);
-    print('✅ PostgresService: Müşteri eklendi - ID: $_nextId');
-
-    return _nextId++;
-  }
-
-  // Müşteri güncelle
-  Future<void> updateCustomer(Customer customer) async {
-    print('✏️ PostgresService: Müşteri güncelleniyor - ${customer.name}');
-    await Future.delayed(const Duration(milliseconds: 600)); // Simülasyon
-
-    final index = _customers.indexWhere((c) => c.id == customer.id);
-    if (index != -1) {
-      _customers[index] = customer.copyWith(updatedAt: DateTime.now());
-      print('✅ PostgresService: Müşteri güncellendi');
-    } else {
-      throw Exception('Müşteri bulunamadı');
     }
   }
 
-  // Müşteri sil
-  Future<void> deleteCustomer(int id) async {
-    print('🗑️ PostgresService: Müşteri siliniyor - ID: $id');
-    await Future.delayed(const Duration(milliseconds: 400)); // Simülasyon
-
-    final initialLength = _customers.length;
-    _customers.removeWhere((customer) => customer.id == id);
-    if (_customers.length == initialLength) {
-      throw Exception('Silinecek müşteri bulunamadı');
->>>>>>> 9edad2e098eae04be983b3a79e53f14538508736
-    }
-    print('✅ PostgresService: Müşteri silindi');
-  }
-
-  // ID'ye göre müşteri getir
-  Future<Customer?> getCustomerById(int id) async {
-    print('🔍 PostgresService: Müşteri getiriliyor - ID: $id');
-    await Future.delayed(const Duration(milliseconds: 300)); // Simülasyon
-
+  /// Müşteri sil
+  Future<bool> deleteCustomer(int id) async {
+    if (!_isConnected) return false;
     try {
-<<<<<<< HEAD
+      await _connection!.execute(
+        'DELETE FROM customers WHERE id = @id',
+        substitutionValues: {'id': id},
+      );
+      return true;
+    } catch (e) {
+      print('❌ Müşteri silme hatası: $e');
+      return false;
+    }
+  }
+
+  /// Müşteri getir (ID ile)
+  Future<Customer?> getCustomerById(int id) async {
+    if (!_isConnected) return null;
+    try {
       final results = await _connection!.query(
         'SELECT * FROM customers WHERE id = @id',
         substitutionValues: {'id': id},
@@ -346,18 +332,16 @@ class PostgresService {
           taxNumber: _safeString(row[5]),
           createdAt: _parseDateTime(row[6]),
           updatedAt: _parseDateTime(row[7]),
+          userId: row[8] as int, // user_id sütunu (sona eklendi)
         );
       }
       return null;
-=======
-      return _customers.firstWhere((customer) => customer.id == id);
->>>>>>> 9edad2e098eae04be983b3a79e53f14538508736
     } catch (e) {
+      print('❌ Müşteri getirme hatası: $e');
       return null;
     }
   }
 
-<<<<<<< HEAD
   // =====================================================
   // ÜRÜN İŞLEMLERİ
   // =====================================================
@@ -645,14 +629,14 @@ class PostgresService {
   // FATURA İŞLEMLERİ
   // =====================================================
 
-  /// Fatura ekle
-  Future<int?> insertInvoice(Invoice invoice) async {
+  /// Fatura ekle (kullanıcıya özel)
+  Future<int?> insertInvoice(Invoice invoice, int userId) async {
     if (!_isConnected) return null;
     try {
       final results = await _connection!.query(
         'INSERT INTO invoices (user_id, invoice_number, customer_id, invoice_date, due_date, notes, terms, discount_rate, status) VALUES (@userId, @invoiceNumber, @customerId, @invoiceDate, @dueDate, @notes, @terms, @discountRate, @status) RETURNING id',
         substitutionValues: {
-          'userId': 1, // Şimdilik sabit user_id (admin kullanıcısı)
+          'userId': userId, // Kullanıcıya özel user_id
           'invoiceNumber': invoice.invoiceNumber,
           'customerId': invoice.customer.id,
           'invoiceDate': invoice.invoiceDate.toIso8601String().split('T')[0],
@@ -673,51 +657,68 @@ class PostgresService {
     }
   }
 
-  /// Tüm faturaları getir
-  Future<List<Invoice>> getAllInvoices() async {
+  /// Tüm faturaları getir (kullanıcıya özel)
+  Future<List<Invoice>> getAllInvoices(int userId) async {
     if (!_isConnected) return [];
     try {
       final results = await _connection!.query(
-        'SELECT c.*, i.* FROM invoices i JOIN customers c ON i.customer_id = c.id ORDER BY i.created_at DESC',
+        '''
+        SELECT 
+          c.id as customer_id, c.name as customer_name, c.email as customer_email, 
+          c.phone as customer_phone, c.address as customer_address, c.tax_number as customer_tax_number,
+          c.created_at as customer_created_at, c.updated_at as customer_updated_at,
+          i.id as invoice_id, i.invoice_number, i.invoice_date, i.due_date, i.notes, i.terms, 
+          i.discount_rate, i.status, i.created_at as invoice_created_at, i.updated_at as invoice_updated_at
+        FROM invoices i 
+        JOIN customers c ON i.customer_id = c.id 
+        WHERE i.user_id = @userId 
+        ORDER BY i.created_at DESC
+        ''',
+        substitutionValues: {'userId': userId},
       );
 
       List<Invoice> invoices = [];
       for (final row in results) {
+        // Debug: Row verilerini kontrol et
+        print('🔍 Row verisi: ${row.map((e) => '${e.runtimeType}: $e').join(', ')}');
+        
         final customer = Customer(
-          id: row[0] as int,
-          name: row[1] as String,
-          email: _safeString(row[2]),
-          phone: _safeString(row[3]),
-          address: _safeString(row[4]),
-          taxNumber: _safeString(row[5]),
-          createdAt: _parseDateTime(row[6]),
-          updatedAt: _parseDateTime(row[7]),
+          id: row[0] as int, // customer_id
+          name: row[1] as String, // customer_name
+          email: _safeString(row[2]), // customer_email
+          phone: _safeString(row[3]), // customer_phone
+          address: _safeString(row[4]), // customer_address
+          taxNumber: _safeString(row[5]), // customer_tax_number
+          createdAt: _parseDateTime(row[6]), // customer_created_at
+          updatedAt: _parseDateTime(row[7]), // customer_updated_at
         );
 
         // InvoiceStatus enum ise stringden dönüştür
-        final statusStr = _safeString(row[15]) ?? 'draft';
+        final statusStr = _safeString(row[15]) ?? 'draft'; // status
+        print('🔍 Status string: $statusStr');
         final status = InvoiceStatus.values.firstWhere(
           (e) => e.name == statusStr,
           orElse: () => InvoiceStatus.draft,
         );
 
-        final invoiceId = row[8] as int;
+        final invoiceId = row[8] as int; // invoice_id
+        print('🔍 Invoice ID: $invoiceId');
 
         // Fatura ürünlerini getir
         final items = await getInvoiceItems(invoiceId);
 
         final invoice = Invoice(
-          id: invoiceId,
-          invoiceNumber: _safeString(row[9]) ?? '',
+          id: invoiceId, // invoice_id
+          invoiceNumber: _safeString(row[9]) ?? '', // invoice_number
           customer: customer,
-          invoiceDate: _parseDateTime(row[10]),
-          dueDate: _parseDateTime(row[11]),
-          notes: _safeString(row[12]),
-          terms: _safeString(row[13]),
-          discountRate: _safeDouble(row[14]),
+          invoiceDate: _parseDateTime(row[10]), // invoice_date
+          dueDate: _parseDateTime(row[11]), // due_date
+          notes: _safeString(row[12]), // notes
+          terms: _safeString(row[13]), // terms
+          discountRate: _safeDouble(row[14]), // discount_rate
           status: status,
-          createdAt: _parseDateTime(row[16]),
-          updatedAt: _parseDateTime(row[17]),
+          createdAt: _parseDateTime(row[16]), // invoice_created_at
+          updatedAt: _parseDateTime(row[17]), // invoice_updated_at
           items: items,
         );
 
@@ -734,6 +735,12 @@ class PostgresService {
   /// Fatura güncelle
   Future<bool> updateInvoice(Invoice invoice) async {
     if (!_isConnected || invoice.id == null) return false;
+    
+    print('🔄 PostgresService.updateInvoice başladı');
+    print('📄 Fatura ID: ${invoice.id}');
+    print('📄 Fatura numarası: ${invoice.invoiceNumber}');
+    print('📦 Ürün sayısı: ${invoice.items.length}');
+    
     try {
       // Transaction başlat
       await _connection!.execute('BEGIN');
@@ -761,8 +768,12 @@ class PostgresService {
       );
 
       // Yeni fatura ürünlerini ekle
-      for (final item in invoice.items) {
+      print('🔄 Fatura ürünleri ekleniyor...');
+      for (int i = 0; i < invoice.items.length; i++) {
+        final item = invoice.items[i];
+        print('  Ürün $i: ${item.product.name}, Orijinal InvoiceId: ${item.invoiceId}');
         final itemWithInvoiceId = item.copyWith(invoiceId: invoice.id!);
+        print('  Ürün $i: ${itemWithInvoiceId.product.name}, Yeni InvoiceId: ${itemWithInvoiceId.invoiceId}');
         await insertInvoiceItem(itemWithInvoiceId);
       }
 
@@ -812,22 +823,33 @@ class PostgresService {
     if (!_isConnected) return null;
     try {
       final results = await _connection!.query(
-        'SELECT c.*, i.* FROM invoices i JOIN customers c ON i.customer_id = c.id WHERE i.id = @id',
+        '''
+        SELECT 
+          c.id as customer_id, c.name as customer_name, c.email as customer_email, 
+          c.phone as customer_phone, c.address as customer_address, c.tax_number as customer_tax_number,
+          c.created_at as customer_created_at, c.updated_at as customer_updated_at,
+          i.id as invoice_id, i.invoice_number, i.invoice_date, i.due_date, i.notes, i.terms, 
+          i.discount_rate, i.status, i.created_at as invoice_created_at, i.updated_at as invoice_updated_at
+        FROM invoices i 
+        JOIN customers c ON i.customer_id = c.id 
+        WHERE i.id = @id
+        ''',
         substitutionValues: {'id': id},
       );
       if (results.isNotEmpty) {
         final row = results[0];
         final customer = Customer(
-          id: row[0] as int,
-          name: _safeString(row[1]) ?? '',
-          email: _safeString(row[2]),
-          phone: _safeString(row[3]),
-          address: _safeString(row[4]),
-          taxNumber: _safeString(row[5]),
-          createdAt: _parseDateTime(row[6]),
-          updatedAt: _parseDateTime(row[7]),
+          id: row[0] as int, // customer_id
+          name: _safeString(row[1]) ?? '', // customer_name
+          email: _safeString(row[2]), // customer_email
+          phone: _safeString(row[3]), // customer_phone
+          address: _safeString(row[4]), // customer_address
+          taxNumber: _safeString(row[5]), // customer_tax_number
+          createdAt: _parseDateTime(row[6]), // customer_created_at
+          updatedAt: _parseDateTime(row[7]), // customer_updated_at
         );
-        final statusStr = _safeString(row[15]) ?? 'draft';
+        final statusStr = _safeString(row[15]) ?? 'draft'; // status
+        print('🔍 Status string (getInvoiceById): $statusStr');
         final status = InvoiceStatus.values.firstWhere(
           (e) => e.name == statusStr,
           orElse: () => InvoiceStatus.draft,
@@ -837,17 +859,17 @@ class PostgresService {
         final items = await getInvoiceItems(id);
 
         return Invoice(
-          id: row[8] as int,
-          invoiceNumber: _safeString(row[9]) ?? '',
+          id: row[8] as int, // invoice_id
+          invoiceNumber: _safeString(row[9]) ?? '', // invoice_number
           customer: customer,
-          invoiceDate: _parseDateTime(row[10]),
-          dueDate: _parseDateTime(row[11]),
-          notes: _safeString(row[12]),
-          terms: _safeString(row[13]),
-          discountRate: _safeDouble(row[14]),
+          invoiceDate: _parseDateTime(row[10]), // invoice_date
+          dueDate: _parseDateTime(row[11]), // due_date
+          notes: _safeString(row[12]), // notes
+          terms: _safeString(row[13]), // terms
+          discountRate: _safeDouble(row[14]), // discount_rate
           status: status,
-          createdAt: _parseDateTime(row[16]),
-          updatedAt: _parseDateTime(row[17]),
+          createdAt: _parseDateTime(row[16]), // invoice_created_at
+          updatedAt: _parseDateTime(row[17]), // invoice_updated_at
           items: items,
         );
       }
@@ -982,32 +1004,6 @@ class PostgresService {
     } catch (e) {
       print('❌ Fatura kalemleri hatası: $e');
       return [];
-=======
-  // Test verileri ekle
-  static void addTestData() {
-    if (_customers.isEmpty) {
-      _customers.addAll([
-        Customer(
-          id: _nextId++,
-          name: 'Ahmet Yılmaz',
-          email: 'ahmet@test.com',
-          phone: '+90 532 123 4567',
-          address: 'İstanbul',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        Customer(
-          id: _nextId++,
-          name: 'Fatma Kaya',
-          email: 'fatma@test.com',
-          phone: '+90 533 987 6543',
-          address: 'Ankara',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-      ]);
-      print('🧪 Test verileri eklendi: ${_customers.length} müşteri');
->>>>>>> 9edad2e098eae04be983b3a79e53f14538508736
     }
   }
 }

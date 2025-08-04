@@ -81,4 +81,15 @@ class CompanyProvider extends ChangeNotifier {
       _setLoading(false);
     }
   }
+
+  // Firma bilgilerini kaydet (oluştur veya güncelle)
+  Future<bool> saveCompanyInfo(CompanyInfo companyInfo) async {
+    if (companyInfo.id == 0) {
+      // Yeni kayıt oluştur
+      return await createCompanyInfo(companyInfo);
+    } else {
+      // Mevcut kaydı güncelle
+      return await updateCompanyInfo(companyInfo);
+    }
+  }
 } 

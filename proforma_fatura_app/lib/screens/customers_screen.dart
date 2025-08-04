@@ -80,22 +80,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
             widget.onBackToHome?.call();
           },
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AddCustomerScreen(),
-                ),
-              );
-              if (result == true && mounted) {
-                context.read<CustomerProvider>().loadCustomers();
-              }
-            },
-          ),
-        ],
       ),
       body: Consumer<CustomerProvider>(
         builder: (context, customerProvider, child) {
@@ -220,6 +204,21 @@ class _CustomersScreenState extends State<CustomersScreen> {
             ],
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AddCustomerScreen()),
+          );
+          if (result == true && mounted) {
+            context.read<CustomerProvider>().loadCustomers();
+          }
+        },
+        backgroundColor: AppConstants.primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        child: const Icon(Icons.add, size: 28),
       ),
     );
   }
@@ -398,8 +397,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  AddCustomerScreen(customer: customer),
+                              builder: (context) => const AddCustomerScreen(),
                             ),
                           );
                           if (result == true && mounted) {

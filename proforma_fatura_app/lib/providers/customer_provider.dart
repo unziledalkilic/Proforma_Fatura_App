@@ -8,45 +8,44 @@ class CustomerProvider with ChangeNotifier {
   List<Customer> _customers = [];
   bool _isLoading = false;
   String? _error;
+  int? _currentUserId; // Kullanıcı ID'si eklendi
 
   List<Customer> get customers => _customers;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  // Kullanıcı ID'sini ayarla
+  void setCurrentUser(int userId) {
+    _currentUserId = userId;
+    print('👤 CustomerProvider: Kullanıcı ID ayarlandı: $userId');
+  }
+
   // Müşterileri yükle
   Future<void> loadCustomers() async {
-<<<<<<< HEAD
-    // Eğer zaten yüklüyse tekrar yükleme
-    if (_customers.isNotEmpty && !_isLoading) {
-      print('📋 Müşteriler zaten yüklü, tekrar yüklenmiyor');
+    if (_currentUserId == null) {
+      print(
+        '⚠️ CustomerProvider: Kullanıcı ID ayarlanmamış, müşteriler yüklenemiyor',
+      );
       return;
     }
 
-    print('🔄 CustomerProvider: Müşteriler yükleniyor...');
-=======
-    print('🔄 Müşteriler yükleniyor...');
->>>>>>> 9edad2e098eae04be983b3a79e53f14538508736
+    print('🔄 Müşteriler yükleniyor... (Kullanıcı ID: $_currentUserId)');
+
     _setLoading(true);
     try {
-      _customers = await _postgresService.getAllCustomers();
+      _customers = await _postgresService.getAllCustomers(_currentUserId!);
       print('✅ CustomerProvider: ${_customers.length} müşteri yüklendi');
       _error = null;
-<<<<<<< HEAD
-      notifyListeners();
-=======
+
       print('✅ ${_customers.length} müşteri yüklendi');
       for (var customer in _customers) {
         print('   - ${customer.name} (ID: ${customer.id})');
       }
->>>>>>> 9edad2e098eae04be983b3a79e53f14538508736
     } catch (e) {
       print('❌ CustomerProvider: Müşteri yükleme hatası: $e');
       _error = 'Müşteriler yüklenirken hata oluştu: $e';
-<<<<<<< HEAD
-      notifyListeners();
-=======
+
       print('❌ Hata: $_error');
->>>>>>> 9edad2e098eae04be983b3a79e53f14538508736
     } finally {
       _setLoading(false);
     }
@@ -54,7 +53,16 @@ class CustomerProvider with ChangeNotifier {
 
   // Müşteri ekle
   Future<bool> addCustomer(Customer customer) async {
-    print('📝 Müşteri ekleniyor: ${customer.name}');
+    if (_currentUserId == null) {
+      print(
+        '⚠️ CustomerProvider: Kullanıcı ID ayarlanmamış, müşteri eklenemiyor',
+      );
+      return false;
+    }
+
+    print(
+      '📝 Müşteri ekleniyor: ${customer.name} (Kullanıcı ID: $_currentUserId)',
+    );
     _setLoading(true);
     try {
       // Müşteri bilgilerini formatla
@@ -72,10 +80,16 @@ class CustomerProvider with ChangeNotifier {
       );
 
       print('📤 Veritabanına kaydediliyor...');
-      final id = await _postgresService.insertCustomer(formattedCustomer);
+      final id = await _postgresService.insertCustomer(
+        formattedCustomer,
+        _currentUserId!,
+      );
       print('✅ Müşteri kaydedildi, ID: $id');
 
-      final newCustomer = formattedCustomer.copyWith(id: id);
+      final newCustomer = formattedCustomer.copyWith(
+        id: id,
+        userId: _currentUserId,
+      );
 
       // Listeye ekle
       _customers.add(newCustomer);
@@ -83,10 +97,6 @@ class CustomerProvider with ChangeNotifier {
 
       _error = null;
       notifyListeners();
-
-      // Kontrol için listeyi yeniden yükle
-      print('🔄 Kontrol için liste yenileniyor...');
-      await loadCustomers();
 
       return true;
     } catch (e) {

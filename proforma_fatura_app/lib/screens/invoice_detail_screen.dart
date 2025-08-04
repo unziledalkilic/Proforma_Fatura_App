@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import '../constants/app_constants.dart';
 import '../models/invoice.dart';
+import '../services/pdf_service.dart';
+import 'pdf_preview_screen.dart';
 
 class InvoiceDetailScreen extends StatelessWidget {
   final Invoice invoice;
@@ -18,6 +21,10 @@ class InvoiceDetailScreen extends StatelessWidget {
             onPressed: () {
               // TODO: Fatura düzenleme ekranına yönlendir
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            onPressed: () => _showPdfPreview(context),
           ),
           IconButton(
             icon: const Icon(Icons.print),
@@ -195,11 +202,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Container(
-                      width: 1,
-                      height: 50,
-                      color: Colors.grey[300],
-                    ),
+                    Container(width: 1, height: 50, color: Colors.grey[300]),
                     Expanded(
                       child: Column(
                         children: [
@@ -221,11 +224,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Container(
-                      width: 1,
-                      height: 50,
-                      color: Colors.grey[300],
-                    ),
+                    Container(width: 1, height: 50, color: Colors.grey[300]),
                     Expanded(
                       child: Column(
                         children: [
@@ -314,7 +313,10 @@ class InvoiceDetailScreen extends StatelessWidget {
                     const SizedBox(height: 12),
                     // Tablo başlığı
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey[100],
                         borderRadius: BorderRadius.circular(8),
@@ -353,173 +355,191 @@ class InvoiceDetailScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    ...invoice.items.map((item) => Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[300]!),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.product.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    if (item.notes != null) ...[
+                    ...invoice.items.map(
+                      (item) => Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
                                       Text(
-                                        'Not: ${item.notes!}',
+                                        item.product.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      if (item.notes != null) ...[
+                                        Text(
+                                          'Not: ${item.notes!}',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        '${item.quantity.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      Text(
+                                        item.product.unit,
                                         style: const TextStyle(
                                           fontSize: 12,
                                           color: Colors.grey,
                                         ),
+                                        textAlign: TextAlign.center,
                                       ),
-                                      const SizedBox(height: 4),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        '₺${item.unitPrice.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      if (item.discountRate != null &&
+                                          item.discountRate! > 0) ...[
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green[100],
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'İndirim: %${item.discountRate!.toStringAsFixed(1)}',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.green,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      if (item.taxRate != null &&
+                                          item.taxRate! > 0) ...[
+                                        const SizedBox(height: 2),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue[100],
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'KDV: %${item.taxRate!.toStringAsFixed(1)}',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.blue,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        '₺${item.totalAmount.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            // Detay satırı - ara toplam, indirim, KDV
+                            if (item.discountRate != null &&
+                                    item.discountRate! > 0 ||
+                                item.taxRate != null && item.taxRate! > 0) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      'Ara Toplam: ₺${item.subtotal.toStringAsFixed(2)}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    if (item.discountRate != null &&
+                                        item.discountRate! > 0) ...[
+                                      const Spacer(),
+                                      Text(
+                                        'İndirim: -₺${item.discountAmount.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.green,
+                                        ),
+                                      ),
+                                    ],
+                                    if (item.taxRate != null &&
+                                        item.taxRate! > 0) ...[
+                                      const Spacer(),
+                                      Text(
+                                        'KDV: +₺${item.taxAmount.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.blue,
+                                        ),
+                                      ),
                                     ],
                                   ],
                                 ),
                               ),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      '${item.quantity.toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    Text(
-                                      item.product.unit,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                                                             Expanded(
-                                 child: Column(
-                                   children: [
-                                     Text(
-                                       '₺${item.unitPrice.toStringAsFixed(2)}',
-                                       style: const TextStyle(
-                                         fontWeight: FontWeight.bold,
-                                       ),
-                                       textAlign: TextAlign.center,
-                                     ),
-                                     const SizedBox(height: 2),
-                                     if (item.discountRate != null && item.discountRate! > 0) ...[
-                                       Container(
-                                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                         decoration: BoxDecoration(
-                                           color: Colors.green[100],
-                                           borderRadius: BorderRadius.circular(12),
-                                         ),
-                                         child: Text(
-                                           'İndirim: %${item.discountRate!.toStringAsFixed(1)}',
-                                           style: const TextStyle(
-                                             fontSize: 10,
-                                             color: Colors.green,
-                                             fontWeight: FontWeight.bold,
-                                           ),
-                                         ),
-                                       ),
-                                     ],
-                                     if (item.taxRate != null && item.taxRate! > 0) ...[
-                                       const SizedBox(height: 2),
-                                       Container(
-                                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                         decoration: BoxDecoration(
-                                           color: Colors.blue[100],
-                                           borderRadius: BorderRadius.circular(12),
-                                         ),
-                                         child: Text(
-                                           'KDV: %${item.taxRate!.toStringAsFixed(1)}',
-                                           style: const TextStyle(
-                                             fontSize: 10,
-                                             color: Colors.blue,
-                                             fontWeight: FontWeight.bold,
-                                           ),
-                                         ),
-                                       ),
-                                     ],
-                                   ],
-                                 ),
-                               ),
-                                                             Expanded(
-                                 child: Column(
-                                   crossAxisAlignment: CrossAxisAlignment.end,
-                                   children: [
-                                     Text(
-                                       '₺${item.totalAmount.toStringAsFixed(2)}',
-                                       style: const TextStyle(
-                                         fontWeight: FontWeight.bold,
-                                         fontSize: 16,
-                                       ),
-                                     ),
-                                   ],
-                                 ),
-                               ),
                             ],
-                          ),
-                          // Detay satırı - ara toplam, indirim, KDV
-                          if (item.discountRate != null && item.discountRate! > 0 || 
-                              item.taxRate != null && item.taxRate! > 0) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    'Ara Toplam: ₺${item.subtotal.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                  if (item.discountRate != null && item.discountRate! > 0) ...[
-                                    const Spacer(),
-                                    Text(
-                                      'İndirim: -₺${item.discountAmount.toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.green,
-                                      ),
-                                    ),
-                                  ],
-                                  if (item.taxRate != null && item.taxRate! > 0) ...[
-                                    const Spacer(),
-                                    Text(
-                                      'KDV: +₺${item.taxAmount.toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.blue,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
                           ],
-                        ],
+                        ),
                       ),
-                    )),
+                    ),
                     const Divider(),
                     // Toplam Bilgileri
                     Container(
@@ -539,11 +559,14 @@ class InvoiceDetailScreen extends StatelessWidget {
                               ),
                               Text(
                                 '₺${invoice.subtotal.toStringAsFixed(2)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
-                          if (invoice.discountRate != null && invoice.discountRate! > 0) ...[
+                          if (invoice.discountRate != null &&
+                              invoice.discountRate! > 0) ...[
                             const SizedBox(height: 8),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -681,4 +704,13 @@ class InvoiceDetailScreen extends StatelessWidget {
         return 'Süresi Doldu';
     }
   }
-} 
+
+  /// PDF önizleme ekranını göster
+  void _showPdfPreview(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PdfPreviewScreen(invoice: invoice),
+      ),
+    );
+  }
+}

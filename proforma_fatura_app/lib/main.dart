@@ -22,15 +22,15 @@ class ProformaFaturaApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => CustomerProvider()),
+        ChangeNotifierProvider(create: (_) => CompanyProvider()),
         ChangeNotifierProxyProvider<AuthProvider, ProductProvider>(
           create: (_) => ProductProvider(),
           update: (_, auth, product) {
             if (product != null) {
               // AuthProvider'dan ProductProvider'a kullanıcı ID'sini geçir
-              auth.onUserLogin = (userId) {
+              auth.addUserLoginCallback((userId) {
                 product.setCurrentUser(userId);
-              };
+              });
               // Uygulama başlangıcında giriş durumunu kontrol et
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 auth.checkLoginStatus();
@@ -39,8 +39,38 @@ class ProformaFaturaApp extends StatelessWidget {
             return product ?? ProductProvider();
           },
         ),
-        ChangeNotifierProvider(create: (_) => InvoiceProvider()),
-        ChangeNotifierProvider(create: (_) => CompanyProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, CustomerProvider>(
+          create: (_) => CustomerProvider(),
+          update: (_, auth, customer) {
+            if (customer != null) {
+              // AuthProvider'dan CustomerProvider'a kullanıcı ID'sini geçir
+              auth.addUserLoginCallback((userId) {
+                customer.setCurrentUser(userId);
+              });
+              // Uygulama başlangıcında giriş durumunu kontrol et
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                auth.checkLoginStatus();
+              });
+            }
+            return customer ?? CustomerProvider();
+          },
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, InvoiceProvider>(
+          create: (_) => InvoiceProvider(),
+          update: (_, auth, invoice) {
+            if (invoice != null) {
+              // AuthProvider'dan InvoiceProvider'a kullanıcı ID'sini geçir
+              auth.addUserLoginCallback((userId) {
+                invoice.setCurrentUser(userId);
+              });
+              // Uygulama başlangıcında giriş durumunu kontrol et
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                auth.checkLoginStatus();
+              });
+            }
+            return invoice ?? InvoiceProvider();
+          },
+        ),
       ],
       child: MaterialApp(
         title: AppConstants.appName,

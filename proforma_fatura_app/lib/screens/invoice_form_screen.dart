@@ -7,6 +7,7 @@ import '../models/product.dart';
 import '../providers/customer_provider.dart';
 import '../providers/invoice_provider.dart';
 import '../providers/product_provider.dart';
+import 'pdf_preview_screen.dart';
 
 class InvoiceFormScreen extends StatefulWidget {
   final Invoice? invoice; // Düzenleme modu için
@@ -95,7 +96,14 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     // Fatura ürünlerini yükle
     _invoiceItems = List.from(invoice.items);
 
-    print('✅ Fatura bilgileri yüklendi: ${invoice.invoiceNumber}');
+    print('✅ Fatura bilgileri yüklendi: ${invoice.id}');
+    print('📄 Fatura numarası: ${invoice.invoiceNumber}');
+    print('📦 Ürün sayısı: ${invoice.items.length}');
+    
+    // Debug: Mevcut ürünlerin invoiceId'lerini kontrol et
+    for (int i = 0; i < invoice.items.length; i++) {
+      print('  Mevcut ürün $i: ${invoice.items[i].product.name}, InvoiceId: ${invoice.items[i].invoiceId}');
+    }
   }
 
   @override
@@ -307,12 +315,26 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
       if (widget.invoice != null) {
         // Düzenleme modu - mevcut faturayı güncelle
+        print('🔄 Fatura güncelleme başladı');
+        print('📄 Orijinal fatura ID: ${widget.invoice!.id}');
+        print('📄 Orijinal fatura numarası: ${widget.invoice!.invoiceNumber}');
+        print('📦 Mevcut ürün sayısı: ${_invoiceItems.length}');
+        
+        // Debug: Her ürünün invoiceId'sini kontrol et
+        for (int i = 0; i < _invoiceItems.length; i++) {
+          print('  Ürün $i: ${_invoiceItems[i].product.name}, InvoiceId: ${_invoiceItems[i].invoiceId}');
+        }
+        
         invoice = widget.invoice!.copyWith(
           invoiceNumber: _invoiceNumberController.text.trim(),
           customer: customer,
           items: _invoiceItems,
           updatedAt: DateTime.now(),
         );
+        
+        print('📄 Güncellenmiş fatura ID: ${invoice.id}');
+        print('📄 Güncellenmiş fatura numarası: ${invoice.invoiceNumber}');
+        
         success = await invoiceProvider.updateInvoice(invoice);
         if (!success) {
           throw Exception('Fatura güncellenemedi');
@@ -345,11 +367,28 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
       if (mounted) {
         Navigator.of(context).pop(true);
+        
+        // Yeni fatura oluşturulduysa PDF önizleme ekranına yönlendir
+        if (widget.invoice == null) {
+          // Kısa bir gecikme ile PDF önizleme ekranını aç
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => PdfPreviewScreen(invoice: invoice),
+                ),
+              );
+            }
+          });
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Fatura başarıyla oluşturuldu!'),
+          SnackBar(
+            content: Text(widget.invoice != null 
+              ? 'Fatura başarıyla güncellendi!' 
+              : 'Fatura başarıyla oluşturuldu! PDF önizleme açılıyor...'),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
+            duration: const Duration(seconds: 3),
           ),
         );
       }

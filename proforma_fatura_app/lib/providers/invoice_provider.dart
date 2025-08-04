@@ -7,16 +7,29 @@ class InvoiceProvider with ChangeNotifier {
   List<Invoice> _invoices = [];
   bool _isLoading = false;
   String? _error;
+  int? _currentUserId; // Kullanıcı ID'si eklendi
 
   List<Invoice> get invoices => _invoices;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  // Kullanıcı ID'sini ayarla
+  void setCurrentUser(int userId) {
+    _currentUserId = userId;
+    print('👤 InvoiceProvider: Kullanıcı ID ayarlandı: $userId');
+  }
+
   // Faturaları yükle
   Future<void> loadInvoices() async {
+    if (_currentUserId == null) {
+      print('⚠️ InvoiceProvider: Kullanıcı ID ayarlanmamış, faturalar yüklenemiyor');
+      return;
+    }
+
+    print('🔄 Faturalar yükleniyor... (Kullanıcı ID: $_currentUserId)');
     _setLoading(true);
     try {
-      _invoices = await _postgresService.getAllInvoices();
+      _invoices = await _postgresService.getAllInvoices(_currentUserId!);
       _error = null;
       notifyListeners();
     } catch (e) {
@@ -29,15 +42,20 @@ class InvoiceProvider with ChangeNotifier {
 
   // Fatura ekle
   Future<bool> addInvoice(Invoice invoice) async {
+    if (_currentUserId == null) {
+      print('⚠️ InvoiceProvider: Kullanıcı ID ayarlanmamış, fatura eklenemiyor');
+      return false;
+    }
+
+    print('🔄 Fatura kaydediliyor: ${invoice.invoiceNumber} (Kullanıcı ID: $_currentUserId)');
+    print('📦 Ürün sayısı: ${invoice.items.length}');
+    print('👤 Müşteri: ${invoice.customer.name}');
+
     _setLoading(true);
     try {
-      print('🔄 Fatura kaydediliyor: ${invoice.invoiceNumber}');
-      print('📦 Ürün sayısı: ${invoice.items.length}');
-      print('👤 Müşteri: ${invoice.customer.name}');
-
       // Önce faturayı ekle
       print('📄 Fatura veritabanına ekleniyor...');
-      final invoiceId = await _postgresService.insertInvoice(invoice);
+      final invoiceId = await _postgresService.insertInvoice(invoice, _currentUserId!);
       if (invoiceId == null) {
         throw Exception('Fatura eklenemedi');
       }

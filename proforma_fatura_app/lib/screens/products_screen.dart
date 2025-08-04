@@ -100,27 +100,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
             widget.onBackToHome?.call();
           },
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              final navigatorContext = context;
-              final result = await Navigator.of(navigatorContext).push(
-                MaterialPageRoute(
-                  builder: (context) => const ProductFormScreen(),
-                ),
-              );
-              // Eğer ürün eklendi/güncellendi ise listeyi yeniden yükle
-              if (result == true && mounted) {
-                final productProvider = navigatorContext
-                    .read<ProductProvider>();
-                await productProvider.loadProducts();
-                // Filtrelemeyi yeniden uygula
-                _filterProducts(_searchController.text);
-              }
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
