@@ -15,7 +15,7 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
 
-    @override
+  @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
@@ -32,7 +32,7 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _animationController.forward();
-    
+
     // Splash süresini bekle ve HomeScreen'e geç
     Future.delayed(AppConstants.splashDuration, () {
       if (mounted) {
@@ -40,9 +40,10 @@ class _SplashScreenState extends State<SplashScreen>
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 const HomeScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
             transitionDuration: const Duration(milliseconds: 500),
           ),
         );

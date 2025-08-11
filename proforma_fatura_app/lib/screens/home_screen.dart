@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_constants.dart';
-import '../providers/auth_provider.dart';
-import '../providers/customer_provider.dart';
-import '../providers/product_provider.dart';
-import '../providers/invoice_provider.dart';
+import '../providers/hybrid_provider.dart';
+import '../widgets/sync_status_widget.dart';
 
 import '../services/currency_service.dart';
-import '../widgets/invoice_stats_widget.dart';
+
 import 'customers_screen.dart';
 import 'products_screen.dart';
 import 'invoices_screen.dart';
@@ -16,7 +14,6 @@ import 'profile_screen.dart';
 import 'product_form_screen.dart';
 import 'invoice_form_screen.dart';
 import 'add_customer_screen.dart';
-import 'pdf_preview_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -54,33 +51,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadInitialData() async {
     try {
-      // Önce kullanıcı giriş durumunu kontrol et
-      final authProvider = context.read<AuthProvider>();
-      if (authProvider.currentUser != null &&
-          authProvider.currentUser!.id != null) {
-        // Kullanıcı giriş yapmışsa, ProductProvider'a kullanıcı ID'sini geçir
-        final productProvider = context.read<ProductProvider>();
-        productProvider.setCurrentUser(authProvider.currentUser!.id!);
+      // Hybrid Provider'dan verileri yükle
+      final hybridProvider = context.read<HybridProvider>();
 
-        // CustomerProvider'a kullanıcı ID'sini geçir
-        final customerProvider = context.read<CustomerProvider>();
-        customerProvider.setCurrentUser(authProvider.currentUser!.id!);
-
-        // InvoiceProvider'a kullanıcı ID'sini geçir
-        final invoiceProvider = context.read<InvoiceProvider>();
-        invoiceProvider.setCurrentUser(authProvider.currentUser!.id!);
-
-        await Future.wait([
-          customerProvider.loadCustomers(),
-          context.read<ProductProvider>().loadProducts(),
-          invoiceProvider.loadInvoices(),
-        ]);
-      } else {
-        // Kullanıcı giriş yapmamışsa sadece müşteri ve fatura verilerini yükle
-        await Future.wait([
-          context.read<CustomerProvider>().loadCustomers(),
-          context.read<InvoiceProvider>().loadInvoices(),
-        ]);
+      // Kullanıcı giriş yapmışsa verileri yükle
+      if (hybridProvider.currentUser != null) {
+        // HybridProvider otomatik olarak verileri yükler, manuel yüklemeye gerek yok
       }
     } catch (e) {
       debugPrint('Veri yükleme hatası: $e');
@@ -148,9 +124,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadExchangeRates() async {
     try {
-      print('🔄 Dashboard: Doviz kurlari yukleniyor...');
+      debugPrint('🔄 Dashboard: Doviz kurlari yukleniyor...');
       final rates = await CurrencyService.getExchangeRates();
-      print('✅ Dashboard: Doviz kurlari alindi: $rates');
+      debugPrint('✅ Dashboard: Doviz kurlari alindi: $rates');
 
       // Widget hala aktif mi kontrol et
       if (mounted) {
@@ -160,7 +136,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         });
       }
     } catch (e) {
-      print('❌ Dashboard: Doviz kurlari yukleme hatasi: $e');
+      debugPrint('❌ Dashboard: Doviz kurlari yukleme hatasi: $e');
 
       // Widget hala aktif mi kontrol et
       if (mounted) {
@@ -177,6 +153,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text(AppConstants.homeTitle),
         actions: [
+          const CompactSyncStatusWidget(),
+          const SizedBox(width: 8),
+          // Senkron butonlarını gizledik: otomatik senkron devrede
           IconButton(
             icon: const Icon(Icons.help_outline),
             onPressed: () {
@@ -186,432 +165,386 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: Consumer3<CustomerProvider, ProductProvider, InvoiceProvider>(
-        builder:
-            (
-              context,
-              customerProvider,
-              productProvider,
-              invoiceProvider,
-              child,
-            ) {
-              return RefreshIndicator(
-                onRefresh: () async {
-                  await Future.wait([
-                    customerProvider.loadCustomers(),
-                    productProvider.loadProducts(),
-                    invoiceProvider.loadInvoices(),
-                  ]);
-                },
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(AppConstants.paddingMedium),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Hoş geldin mesajı
-                      Consumer<AuthProvider>(
-                        builder: (context, authProvider, child) {
-                          final userName =
-                              authProvider.currentUser?.fullName ??
-                              authProvider.currentUser?.username ??
-                              'Kullanıcı';
-                          return Card(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppConstants.paddingMedium,
-                                vertical: AppConstants.paddingSmall,
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      color: AppConstants.primaryColor
-                                          .withAlpha(26),
-                                      borderRadius: BorderRadius.circular(25),
-                                    ),
-                                    child: Icon(
-                                      Icons.person,
-                                      size: 30,
-                                      color: AppConstants.primaryColor,
-                                    ),
-                                  ),
-                                  const SizedBox(
-                                    width: AppConstants.paddingMedium,
-                                  ),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Hoş Geldiniz!',
-                                          style: AppConstants.captionStyle
-                                              .copyWith(
-                                                fontSize: 12,
-                                                color:
-                                                    AppConstants.textSecondary,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          userName,
-                                          style: AppConstants.headingStyle
-                                              .copyWith(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Icon(
-                                    Icons.waving_hand,
-                                    color: AppConstants.warningColor,
-                                    size: 24,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: AppConstants.paddingMedium),
+      body: Consumer<HybridProvider>(
+        builder: (context, hybridProvider, child) {
+          return RefreshIndicator(
+            onRefresh: () async {
+              // Hybrid provider'da manual sync tetikleme
+              await hybridProvider.performSync();
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(AppConstants.paddingMedium),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Sync Status Widget
+                  const SyncStatusWidget(
+                    showDetails: true,
+                    showSyncButton: false,
+                  ),
+                  const SizedBox(height: AppConstants.paddingMedium),
 
-                      // Döviz Kurları
-                      Row(
-                        children: [
-                          Text(
-                            'Güncel Döviz Kurları',
-                            style: AppConstants.subheadingStyle,
+                  // Hoş geldin mesajı
+                  Consumer<HybridProvider>(
+                    builder: (context, hybridProvider, child) {
+                      final userName =
+                          hybridProvider.appUser?.fullName ??
+                          hybridProvider.appUser?.username ??
+                          'Kullanıcı';
+                      return Card(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppConstants.paddingMedium,
+                            vertical: AppConstants.paddingSmall,
                           ),
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.refresh),
-                            onPressed: () {
-                              if (mounted) {
-                                setState(() {
-                                  _isLoadingRates = true;
-                                });
-                                _loadExchangeRates();
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppConstants.paddingSmall),
-
-                      // Döviz kartları
-                      if (_isLoadingRates)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(AppConstants.paddingMedium),
-                            child: CircularProgressIndicator(),
-                          ),
-                        )
-                      else
-                        Column(
-                          children: [
-                            // Cache durumu ve son güncelleme
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[50],
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: Colors.blue[200]!,
-                                  width: 1,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: AppConstants.primaryColor.withAlpha(
+                                    26,
+                                  ),
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                child: Icon(
+                                  Icons.person,
+                                  size: 30,
+                                  color: AppConstants.primaryColor,
                                 ),
                               ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.info_outline,
-                                    color: Colors.blue[600],
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'TCMB güncel döviz kurları',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.blue[700],
+                              const SizedBox(width: AppConstants.paddingMedium),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Hoş Geldiniz, $userName!',
+                                      style: AppConstants.headingStyle.copyWith(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
                                       ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                  Text(
-                                    'Son güncelleme: ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.blue[600],
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: AppConstants.paddingSmall),
-
-                            // Döviz kartları alt alta
-                            Column(
-                              children: [
-                                _buildDetailedCurrencyCard(
-                                  'USD',
-                                  'Amerikan Doları',
-                                  _exchangeRates['USD'] ?? 0,
-                                  Colors.purple,
-                                ),
-                                const SizedBox(height: 4),
-                                _buildDetailedCurrencyCard(
-                                  'EUR',
-                                  'Euro',
-                                  _exchangeRates['EUR'] ?? 0,
-                                  Colors.green,
-                                ),
-                                const SizedBox(height: 4),
-                                _buildDetailedCurrencyCard(
-                                  'GBP',
-                                  'İngiliz Sterlini',
-                                  _exchangeRates['GBP'] ?? 0,
-                                  Colors.orange,
-                                ),
-                                const SizedBox(height: 4),
-                                _buildDetailedCurrencyCard(
-                                  'JPY',
-                                  'Japon Yeni',
-                                  _exchangeRates['JPY'] ?? 0,
-                                  Colors.red,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      const SizedBox(height: AppConstants.paddingLarge),
-
-                      // Hızlı işlemler
-                      Container(
-                        padding: const EdgeInsets.all(
-                          AppConstants.paddingMedium,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              AppConstants.primaryColor.withOpacity(0.1),
-                              AppConstants.primaryColor.withOpacity(0.05),
+                              Icon(
+                                Icons.waving_hand,
+                                color: AppConstants.warningColor,
+                                size: 24,
+                              ),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: AppConstants.primaryColor.withOpacity(0.2),
-                            width: 1,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: AppConstants.paddingMedium),
+
+                  // Döviz Kurları
+                  Row(
+                    children: [
+                      Text(
+                        'Güncel Döviz Kurları',
+                        style: AppConstants.subheadingStyle,
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        onPressed: () {
+                          if (mounted) {
+                            setState(() {
+                              _isLoadingRates = true;
+                            });
+                            _loadExchangeRates();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppConstants.paddingSmall),
+
+                  // Döviz kartları
+                  if (_isLoadingRates)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(AppConstants.paddingMedium),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else
+                    Column(
+                      children: [
+                        // Cache durumu ve son güncelleme
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.blue[200]!,
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.blue[600],
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'TCMB güncel döviz kurları',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.blue[700],
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                'Son güncelleme: ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.blue[600],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        const SizedBox(height: AppConstants.paddingSmall),
+
+                        // Döviz kartları alt alta
+                        Column(
                           children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: AppConstants.primaryColor,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.flash_on,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  'Hızlı İşlemler',
-                                  style: AppConstants.subheadingStyle.copyWith(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+                            _buildDetailedCurrencyCard(
+                              'USD',
+                              'Amerikan Doları',
+                              _exchangeRates['USD'] ?? 0,
+                              Colors.purple,
                             ),
-                            const SizedBox(height: AppConstants.paddingMedium),
-
-                            // Ana işlemler (2x2 grid)
-                            GridView.count(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 1.2,
-                              children: [
-                                _buildModernQuickActionButton(
-                                  'Yeni Fatura',
-                                  Icons.receipt_long,
-                                  AppConstants.primaryColor,
-                                  () async {
-                                    final productProvider = context
-                                        .read<ProductProvider>();
-                                    final customerProvider = context
-                                        .read<CustomerProvider>();
-
-                                    if (productProvider.categories.isEmpty) {
-                                      await productProvider.loadCategories();
-                                    }
-
-                                    if (customerProvider.customers.isEmpty) {
-                                      await customerProvider.loadCustomers();
-                                    }
-
-                                    if (mounted) {
-                                      _showNewInvoiceOptions(context);
-                                    }
-                                  },
-                                ),
-                                _buildModernQuickActionButton(
-                                  'Müşteri Ekle',
-                                  Icons.person_add,
-                                  AppConstants.successColor,
-                                  () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const AddCustomerScreen(),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                _buildModernQuickActionButton(
-                                  'Ürün Ekle',
-                                  Icons.add_box,
-                                  AppConstants.warningColor,
-                                  () async {
-                                    final productProvider = context
-                                        .read<ProductProvider>();
-                                    if (productProvider.categories.isEmpty) {
-                                      await productProvider.loadCategories();
-                                    }
-
-                                    if (mounted) {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const ProductFormScreen(),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                ),
-                                _buildModernQuickActionButton(
-                                  'Fatura Ara',
-                                  Icons.search,
-                                  AppConstants.errorColor,
-                                  () {
-                                    final homeScreen = context
-                                        .findAncestorStateOfType<
-                                          _HomeScreenState
-                                        >();
-                                    if (homeScreen != null) {
-                                      homeScreen.setState(() {
-                                        homeScreen._currentIndex = 3;
-                                      });
-                                    }
-                                  },
-                                ),
-                              ],
+                            const SizedBox(height: 4),
+                            _buildDetailedCurrencyCard(
+                              'EUR',
+                              'Euro',
+                              _exchangeRates['EUR'] ?? 0,
+                              Colors.green,
+                            ),
+                            const SizedBox(height: 4),
+                            _buildDetailedCurrencyCard(
+                              'GBP',
+                              'İngiliz Sterlini',
+                              _exchangeRates['GBP'] ?? 0,
+                              Colors.orange,
+                            ),
+                            const SizedBox(height: 4),
+                            _buildDetailedCurrencyCard(
+                              'JPY',
+                              'Japon Yeni',
+                              _exchangeRates['JPY'] ?? 0,
+                              Colors.red,
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: AppConstants.paddingLarge),
+                      ],
+                    ),
+                  const SizedBox(height: AppConstants.paddingLarge),
 
-                      // Fatura İstatistikleri
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(
-                            AppConstants.paddingMedium,
-                          ),
-                          child: InvoiceStatsWidget(
-                            invoices: invoiceProvider.invoices,
+                  // Hızlı işlemler
+                  Container(
+                    padding: const EdgeInsets.all(AppConstants.paddingMedium),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppConstants.primaryColor.withOpacity(0.1),
+                          AppConstants.primaryColor.withOpacity(0.05),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppConstants.primaryColor.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppConstants.primaryColor,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.flash_on,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Hızlı İşlemler',
+                              style: AppConstants.subheadingStyle.copyWith(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppConstants.paddingMedium),
+
+                        // Ana işlemler (2x2 grid)
+                        GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 1.2,
+                          children: [
+                            _buildModernQuickActionButton(
+                              'Yeni Fatura',
+                              Icons.receipt_long,
+                              AppConstants.primaryColor,
+                              () async {
+                                final hybridProvider = context
+                                    .read<HybridProvider>();
+
+                                // HybridProvider otomatik olarak verileri yükler
+                                // Gerekirse sync tetiklenebilir
+                                if (hybridProvider.customers.isEmpty) {
+                                  await hybridProvider.performSync();
+                                }
+
+                                if (mounted && context.mounted) {
+                                  _showNewInvoiceOptions(context);
+                                }
+                              },
+                            ),
+                            _buildModernQuickActionButton(
+                              'Müşteri Ekle',
+                              Icons.person_add,
+                              AppConstants.successColor,
+                              () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const AddCustomerScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildModernQuickActionButton(
+                              'Ürün Ekle',
+                              Icons.add_box,
+                              AppConstants.warningColor,
+                              () async {
+                                // HybridProvider kategorileri otomatik yönetir
+
+                                if (mounted) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const ProductFormScreen(),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            _buildModernQuickActionButton(
+                              'Fatura Ara',
+                              Icons.search,
+                              AppConstants.errorColor,
+                              () {
+                                final homeScreen = context
+                                    .findAncestorStateOfType<
+                                      _HomeScreenState
+                                    >();
+                                if (homeScreen != null) {
+                                  homeScreen.setState(() {
+                                    homeScreen._currentIndex = 3;
+                                  });
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppConstants.paddingLarge),
+
+                  // Son faturalar
+                  Text('Son Faturalar', style: AppConstants.subheadingStyle),
+                  const SizedBox(height: AppConstants.paddingSmall),
+
+                  // Son faturalar listesi
+                  if (hybridProvider.invoices.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(AppConstants.paddingMedium),
+                        child: Center(
+                          child: Text(
+                            'Henüz fatura bulunmuyor',
+                            style: AppConstants.captionStyle,
                           ),
                         ),
                       ),
-                      const SizedBox(height: AppConstants.paddingMedium),
-
-                      // Son faturalar
-                      Text(
-                        'Son Faturalar',
-                        style: AppConstants.subheadingStyle,
-                      ),
-                      const SizedBox(height: AppConstants.paddingSmall),
-
-                      // Son faturalar listesi
-                      if (invoiceProvider.invoices.isEmpty)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(AppConstants.paddingMedium),
-                            child: Center(
-                              child: Text(
-                                'Henüz fatura bulunmuyor',
-                                style: AppConstants.captionStyle,
+                    )
+                  else
+                    ...hybridProvider.invoices
+                        .take(5)
+                        .map(
+                          (invoice) => Card(
+                            margin: const EdgeInsets.only(
+                              bottom: AppConstants.paddingSmall,
+                            ),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: AppConstants.primaryColor,
+                                child: Text(
+                                  invoice.invoiceNumber.substring(0, 2),
+                                  style: const TextStyle(color: Colors.white),
+                                ),
                               ),
+                              title: Text(invoice.invoiceNumber),
+                              subtitle: Text(invoice.customer.name),
+                              trailing: Text(
+                                '₺${invoice.totalAmount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppConstants.primaryColor,
+                                ),
+                              ),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        InvoiceDetailScreen(invoice: invoice),
+                                  ),
+                                );
+                              },
                             ),
                           ),
-                        )
-                      else
-                        ...invoiceProvider.invoices
-                            .take(5)
-                            .map(
-                              (invoice) => Card(
-                                margin: const EdgeInsets.only(
-                                  bottom: AppConstants.paddingSmall,
-                                ),
-                                child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: AppConstants.primaryColor,
-                                    child: Text(
-                                      invoice.invoiceNumber.substring(0, 2),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                  title: Text(invoice.invoiceNumber),
-                                  subtitle: Text(invoice.customer.name),
-                                  trailing: Text(
-                                    '₺${invoice.totalAmount.toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppConstants.primaryColor,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            InvoiceDetailScreen(
-                                              invoice: invoice,
-                                            ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                    ],
-                  ),
-                ),
-              );
-            },
+                        ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -976,37 +909,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildQuickActionButton(
-    String title,
-    IconData icon,
-    Color color,
-    VoidCallback onPressed,
-  ) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        padding: const EdgeInsets.symmetric(
-          vertical: AppConstants.paddingSmall,
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 20, color: Colors.white),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

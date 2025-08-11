@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "260241790419",
+    "project_id": "proforma-fatura-app",
+    "storage_bucket": "proforma-fatura-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:260241790419:android:37f14978db96d3f56dcb26",
+        "android_client_info": {
+          "package_name": "com.example.proforma_fatura_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBtljj6SNMznOBPwZ8VL6f5tu4LJLgEWU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

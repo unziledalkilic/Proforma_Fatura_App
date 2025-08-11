@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_constants.dart';
-import '../providers/customer_provider.dart';
+import '../utils/text_formatter.dart';
+import '../providers/hybrid_provider.dart';
 import '../models/customer.dart';
 import 'add_customer_screen.dart';
 
@@ -29,7 +30,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CustomerProvider>().loadCustomers();
+      context.read<HybridProvider>().loadCustomers();
     });
   }
 
@@ -40,9 +41,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 
   void _filterCustomers(String query) {
-    final customerProvider = context.read<CustomerProvider>();
+    final hybridProvider = context.read<HybridProvider>();
     setState(() {
-      _filteredCustomers = customerProvider.searchCustomers(query);
+      _filteredCustomers = hybridProvider.searchCustomers(query);
     });
   }
 
@@ -50,11 +51,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
     switch (_selectedCategory) {
       case 'Son Eklenenler':
         final sortedCustomers = List<Customer>.from(customers);
-        sortedCustomers.sort(
-          (a, b) => (b.createdAt ?? DateTime.now()).compareTo(
-            a.createdAt ?? DateTime.now(),
-          ),
-        );
+        sortedCustomers.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return sortedCustomers.take(10).toList();
       case 'E-posta Var':
         return customers
@@ -81,8 +78,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
           },
         ),
       ),
-      body: Consumer<CustomerProvider>(
-        builder: (context, customerProvider, child) {
+      body: Consumer<HybridProvider>(
+        builder: (context, hybridProvider, child) {
           return Column(
             children: [
               // Arama çubuğu
@@ -113,8 +110,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
               ),
 
               // İstatistikler ve Kategori Filtreleri
-              if (!customerProvider.isLoading &&
-                  customerProvider.error == null) ...[
+              if (!hybridProvider.isLoading &&
+                  hybridProvider.error == null) ...[
                 // Hızlı İstatistikler
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -125,37 +122,37 @@ class _CustomersScreenState extends State<CustomersScreen> {
                       Expanded(
                         child: _buildStatCard(
                           'Toplam',
-                          customerProvider.customers.length.toString(),
+                          hybridProvider.customers.length.toString(),
                           Icons.people,
-                          Colors.blue,
+                          AppConstants.infoColor,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildStatCard(
                           'E-posta',
-                          customerProvider.customers
+                          hybridProvider.customers
                               .where(
                                 (c) => c.email != null && c.email!.isNotEmpty,
                               )
                               .length
                               .toString(),
                           Icons.email,
-                          Colors.green,
+                          AppConstants.successColor,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildStatCard(
                           'Telefon',
-                          customerProvider.customers
+                          hybridProvider.customers
                               .where(
                                 (c) => c.phone != null && c.phone!.isNotEmpty,
                               )
                               .length
                               .toString(),
                           Icons.phone,
-                          Colors.orange,
+                          AppConstants.warningColor,
                         ),
                       ),
                     ],
@@ -200,7 +197,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
               ],
 
               // Müşteri listesi
-              Expanded(child: _buildCustomersList(customerProvider)),
+              Expanded(child: _buildCustomersList(hybridProvider)),
             ],
           );
         },
@@ -211,24 +208,24 @@ class _CustomersScreenState extends State<CustomersScreen> {
             context,
             MaterialPageRoute(builder: (context) => const AddCustomerScreen()),
           );
-          if (result == true && mounted) {
-            context.read<CustomerProvider>().loadCustomers();
+          if (result == true && mounted && context.mounted) {
+            context.read<HybridProvider>().loadCustomers();
           }
         },
         backgroundColor: AppConstants.primaryColor,
-        foregroundColor: Colors.white,
+        foregroundColor: AppConstants.textOnPrimary,
         elevation: 4,
         child: const Icon(Icons.add, size: 28),
       ),
     );
   }
 
-  Widget _buildCustomersList(CustomerProvider customerProvider) {
-    if (customerProvider.isLoading) {
+  Widget _buildCustomersList(HybridProvider hybridProvider) {
+    if (hybridProvider.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (customerProvider.error != null) {
+    if (hybridProvider.error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -240,15 +237,15 @@ class _CustomersScreenState extends State<CustomersScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              customerProvider.error!,
+              hybridProvider.error!,
               style: const TextStyle(fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                customerProvider.clearError();
-                customerProvider.loadCustomers();
+                hybridProvider.clearError();
+                hybridProvider.loadCustomers();
               },
               child: const Text('Tekrar Dene'),
             ),
@@ -259,7 +256,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
     List<Customer> customers;
     if (_searchController.text.isEmpty) {
-      customers = _getCategorizedCustomers(customerProvider.customers);
+      customers = _getCategorizedCustomers(hybridProvider.customers);
     } else {
       customers = _getCategorizedCustomers(_filteredCustomers);
     }
@@ -307,12 +304,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppConstants.surfaceColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: AppConstants.borderLight),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: AppConstants.textTertiary.withOpacity(0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -325,13 +322,19 @@ class _CustomersScreenState extends State<CustomersScreen> {
           const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
+              color: AppConstants.textPrimary,
             ),
           ),
-          Text(title, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppConstants.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -355,12 +358,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: AppConstants.primaryColor,
+                    backgroundColor: AppConstants.getAvatarColor(customer.name),
                     radius: 24,
                     child: Text(
-                      customer.name.substring(0, 1).toUpperCase(),
+                      TextFormatter.initialTr(customer.name),
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppConstants.textOnPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -378,15 +381,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        if (customer.taxOffice != null &&
-                            customer.taxOffice!.isNotEmpty)
-                          Text(
-                            customer.taxOffice!,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
                       ],
                     ),
                   ),
@@ -401,7 +395,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                             ),
                           );
                           if (result == true && mounted) {
-                            context.read<CustomerProvider>().loadCustomers();
+                            context.read<HybridProvider>().loadCustomers();
                           }
                           break;
                         case 'delete':
@@ -528,9 +522,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
             onPressed: () async {
               Navigator.of(context).pop();
               final success = await context
-                  .read<CustomerProvider>()
-                  .deleteCustomer(customer.id!);
-              if (mounted) {
+                  .read<HybridProvider>()
+                  .deleteCustomer(int.parse(customer.id!));
+              if (mounted && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(

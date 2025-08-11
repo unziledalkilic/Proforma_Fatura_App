@@ -7,7 +7,6 @@ class User {
   final String? companyName;
   final String? phone;
   final String? address;
-  final String? taxNumber;
 
   final bool isActive;
   final DateTime createdAt;
@@ -22,7 +21,6 @@ class User {
     this.companyName,
     this.phone,
     this.address,
-    this.taxNumber,
 
     this.isActive = true,
     required this.createdAt,
@@ -39,7 +37,6 @@ class User {
       'company_name': companyName,
       'phone': phone,
       'address': address,
-      'tax_number': taxNumber,
 
       'is_active': isActive ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
@@ -57,7 +54,6 @@ class User {
       companyName: map['company_name'],
       phone: map['phone'],
       address: map['address'],
-      taxNumber: map['tax_number'],
 
       isActive: map['is_active'] == 1,
       createdAt: DateTime.parse(map['created_at']),
@@ -74,7 +70,6 @@ class User {
     String? companyName,
     String? phone,
     String? address,
-    String? taxNumber,
 
     bool? isActive,
     DateTime? createdAt,
@@ -89,7 +84,6 @@ class User {
       companyName: companyName ?? this.companyName,
       phone: phone ?? this.phone,
       address: address ?? this.address,
-      taxNumber: taxNumber ?? this.taxNumber,
 
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,

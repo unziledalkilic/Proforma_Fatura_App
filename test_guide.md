@@ -1,31 +1,18 @@
 # Proforma Fatura App - Test Rehberi
 
-## 🔧 Veritabanı Güncellemesi (Zorunlu)
+## 🔧 Firebase Kurulumu (Zorunlu)
 
-PostgreSQL'de aşağıdaki komutları sırasıyla çalıştırın:
+Firebase projesini kurmak için aşağıdaki adımları takip edin:
 
-### 1. Migration Script'ini Çalıştırın
-```sql
--- postgres_migration.sql dosyasındaki tüm komutları çalıştırın
--- Bu komut user_id sütunlarını ekleyecek ve mevcut verileri düzenleyecek
-```
+### 1. Firebase Console'da Proje Oluşturun
+1. https://console.firebase.google.com adresine gidin
+2. "Create a project" butonuna tıklayın
+3. Proje adını girin ve ayarları tamamlayın
 
-### 2. Veritabanı Durumunu Kontrol Edin
-```sql
--- Kullanıcıları kontrol edin
-SELECT id, username, email FROM users ORDER BY id;
-
--- Tabloların user_id sütunlarını kontrol edin
-SELECT 
-    table_name,
-    column_name,
-    data_type,
-    is_nullable
-FROM information_schema.columns 
-WHERE table_name IN ('customers', 'products', 'invoices', 'product_categories')
-    AND column_name = 'user_id'
-ORDER BY table_name;
-```
+### 2. Android Uygulamasını Ekleyin
+1. Firebase projesinde "Add app" > Android seçin
+2. Package name: com.example.proforma_fatura_app
+3. google-services.json dosyasını indirin ve android/app/ klasörüne yerleştirin
 
 ## 📱 Uygulamayı Test Etme
 
@@ -57,9 +44,9 @@ flutter run -d emulator-5554
 
 ### 3. Hata Durumları
 
-#### A. Veritabanı Bağlantı Hatası
-- **Belirti**: "PostgreSQL bağlantısı kurulamadı" mesajı
-- **Çözüm**: PostgreSQL servisinin çalıştığından emin olun
+#### A. Firebase Bağlantı Hatası
+- **Belirti**: "Firebase bağlantısı kurulamadı" mesajı
+- **Çözüm**: google-services.json dosyasının doğru yerde olduğundan emin olun
 
 #### B. Kullanıcı Bulunamadı
 - **Belirti**: "Kullanıcı bulunamadı" mesajı
@@ -75,7 +62,7 @@ Uygulama çalışırken aşağıdaki logları göreceksiniz:
 
 ### Başarılı Bağlantı
 ```
-✅ PostgreSQL bağlantısı başarılı!
+✅ Firebase bağlantısı başarılı!
 ```
 
 ### Başarılı Kayıt
@@ -107,10 +94,10 @@ Uygulama çalışırken aşağıdaki logları göreceksiniz:
 
 ## 🛠️ Sorun Giderme
 
-### PostgreSQL Bağlantı Sorunu
+### Firebase Bağlantı Sorunu
 ```bash
-# PostgreSQL servisinin durumunu kontrol edin
-# Windows: Hizmetler (Services) uygulamasından "postgresql-x64-15" servisini kontrol edin
+# google-services.json dosyasının varlığını kontrol edin
+# android/app/google-services.json dosyasının olduğundan emin olun
 ```
 
 ### Flutter Bağlantı Sorunu

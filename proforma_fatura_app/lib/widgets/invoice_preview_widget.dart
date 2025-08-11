@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/app_constants.dart';
+import '../utils/text_formatter.dart';
 import '../models/invoice.dart';
 import '../models/invoice_item.dart';
 
@@ -63,24 +64,6 @@ class InvoicePreviewWidget extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    AppConstants.invoiceStatusLabels[invoice.status.name] ?? '',
-                    style: TextStyle(
-                      color: AppConstants.invoiceStatusColors[invoice.status.name],
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -159,7 +142,9 @@ class InvoicePreviewWidget extends StatelessWidget {
                 _buildSection(
                   'Fatura Kalemleri',
                   Column(
-                    children: invoice.items.map((item) => _buildInvoiceItem(item)).toList(),
+                    children: invoice.items
+                        .map((item) => _buildInvoiceItem(item))
+                        .toList(),
                   ),
                 ),
 
@@ -171,7 +156,8 @@ class InvoicePreviewWidget extends StatelessWidget {
                   Column(
                     children: [
                       _buildTotalRow('Ara Toplam', invoice.subtotal),
-                      if (invoice.discountRate != null && invoice.discountRate! > 0)
+                      if (invoice.discountRate != null &&
+                          invoice.discountRate! > 0)
                         _buildTotalRow(
                           'İndirim (%${invoice.discountRate!.toStringAsFixed(1)})',
                           -invoice.discountAmount,
@@ -191,18 +177,12 @@ class InvoicePreviewWidget extends StatelessWidget {
                 // Notlar ve Şartlar
                 if (invoice.notes != null && invoice.notes!.isNotEmpty) ...[
                   const SizedBox(height: AppConstants.paddingMedium),
-                  _buildSection(
-                    'Notlar',
-                    Text(invoice.notes!),
-                  ),
+                  _buildSection('Notlar', Text(invoice.notes!)),
                 ],
 
                 if (invoice.terms != null && invoice.terms!.isNotEmpty) ...[
                   const SizedBox(height: AppConstants.paddingMedium),
-                  _buildSection(
-                    'Ödeme Şartları',
-                    Text(invoice.terms!),
-                  ),
+                  _buildSection('Ödeme Şartları', Text(invoice.terms!)),
                 ],
               ],
             ),
@@ -275,17 +255,11 @@ class InvoicePreviewWidget extends StatelessWidget {
             children: [
               Icon(icon, size: 16, color: AppConstants.primaryColor),
               const SizedBox(width: 4),
-              Text(
-                title,
-                style: AppConstants.captionStyle,
-              ),
+              Text(title, style: AppConstants.captionStyle),
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -323,36 +297,38 @@ class InvoicePreviewWidget extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${item.quantity} ${item.product.unit} x ₺${item.unitPrice.toStringAsFixed(2)}',
+            '${TextFormatter.formatQuantity(item.quantity)} ${item.product.unit} x ₺${item.unitPrice.toStringAsFixed(2)}',
             style: AppConstants.captionStyle,
           ),
           if (item.discountRate != null && item.discountRate! > 0) ...[
             const SizedBox(height: 2),
             Text(
-              'İndirim: %${item.discountRate!.toStringAsFixed(1)}',
+              'İndirim: %${TextFormatter.formatPercent(item.discountRate)}',
               style: AppConstants.captionStyle.copyWith(color: Colors.green),
             ),
           ],
           if (item.taxRate != null && item.taxRate! > 0) ...[
             const SizedBox(height: 2),
             Text(
-              'KDV: %${item.taxRate!.toStringAsFixed(1)}',
+              'KDV: %${TextFormatter.formatPercent(item.taxRate)}',
               style: AppConstants.captionStyle,
             ),
           ],
           if (item.notes != null && item.notes!.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text(
-              'Not: ${item.notes}',
-              style: AppConstants.captionStyle,
-            ),
+            Text('Not: ${item.notes}', style: AppConstants.captionStyle),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildTotalRow(String label, double amount, {bool isDiscount = false, bool isTotal = false}) {
+  Widget _buildTotalRow(
+    String label,
+    double amount, {
+    bool isDiscount = false,
+    bool isTotal = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -377,4 +353,4 @@ class InvoicePreviewWidget extends StatelessWidget {
       ),
     );
   }
-} 
+}

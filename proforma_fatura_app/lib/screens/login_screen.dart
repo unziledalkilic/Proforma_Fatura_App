@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_constants.dart';
-import '../providers/auth_provider.dart';
-import 'register_screen.dart';
-import 'home_screen.dart';
+import '../providers/hybrid_provider.dart';
+import '../utils/text_formatter.dart';
+// import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,23 +14,19 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
   @override
   void initState() {
     super.initState();
-    // PostgreSQL bağlantısını başlat
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authProvider = context.read<AuthProvider>();
-      authProvider.initializeDatabase();
-    });
+    // Firebase Provider zaten main.dart'ta initialize ediliyor
   }
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -38,20 +34,26 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.login(
-      usernameOrEmail: _usernameController.text.trim(),
-      password: _passwordController.text,
+    debugPrint('Login attempt started for: ${_emailController.text}');
+
+    final firebaseProvider = context.read<HybridProvider>();
+    final success = await firebaseProvider.loginUser(
+      _emailController.text.trim(),
+      _passwordController.text,
     );
 
+    debugPrint('Login result: $success');
+    debugPrint('Firebase provider error: ${firebaseProvider.error}');
+
     if (success && mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
+      debugPrint('Login successful, navigating to home screen');
+      // Navigate to home screen after successful login
+      Navigator.of(context).pushReplacementNamed('/home');
     } else if (mounted) {
+      debugPrint('Login failed, showing error message');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.error ?? 'Giriş başarısız'),
+          content: Text(firebaseProvider.error ?? 'Giriş başarısız'),
           backgroundColor: Colors.red,
         ),
       );
@@ -115,13 +117,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // E-posta alanı
                   TextFormField(
-                    controller: _usernameController,
+                    controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
                       labelText: 'E-posta',
                       hintText: 'ornek@gmail.com',
                       prefixIcon: Icon(Icons.email_outlined),
                     ),
+                    inputFormatters: [LowerCaseFormatter()],
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'E-posta gerekli';
@@ -171,10 +174,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 32),
 
                   // Giriş butonu
-                  Consumer<AuthProvider>(
-                    builder: (context, authProvider, child) {
+                  Consumer<HybridProvider>(
+                    builder: (context, firebaseProvider, child) {
                       return ElevatedButton(
-                        onPressed: authProvider.isLoading ? null : _login,
+                        onPressed: firebaseProvider.isLoading ? null : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppConstants.primaryColor,
                           foregroundColor: Colors.white,
@@ -187,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
-                        child: authProvider.isLoading
+                        child: firebaseProvider.isLoading
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
@@ -219,11 +222,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => const RegisterScreen(),
-                            ),
-                          );
+                          Navigator.pushNamed(context, '/register');
                         },
                         style: TextButton.styleFrom(
                           foregroundColor: AppConstants.primaryColor,

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/customer.dart';
-import '../providers/customer_provider.dart';
+import '../providers/hybrid_provider.dart';
+import '../utils/text_formatter.dart';
 import '../constants/app_constants.dart';
 
 class AddCustomerScreen extends StatefulWidget {
-  const AddCustomerScreen({Key? key}) : super(key: key);
+  const AddCustomerScreen({super.key});
 
   @override
   State<AddCustomerScreen> createState() => _AddCustomerScreenState();
@@ -48,7 +49,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
         updatedAt: DateTime.now(),
       );
 
-      final success = await context.read<CustomerProvider>().addCustomer(
+      final success = await context.read<HybridProvider>().addCustomer(
         customer,
       );
 
@@ -120,6 +121,8 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                     color: AppConstants.textSecondary,
                   ),
                 ),
+                textCapitalization: TextCapitalization.words,
+                inputFormatters: [CapitalizeWordsFormatter()],
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Müşteri adı gereklidir';
@@ -151,6 +154,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                   ),
                 ),
                 keyboardType: TextInputType.emailAddress,
+                inputFormatters: [LowerCaseFormatter()],
                 validator: (value) {
                   if (value != null && value.isNotEmpty) {
                     if (!RegExp(
@@ -210,6 +214,8 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                     color: AppConstants.textSecondary,
                   ),
                 ),
+                textCapitalization: TextCapitalization.sentences,
+                inputFormatters: [CapitalizeFirstFormatter()],
                 maxLines: 3,
               ),
               const SizedBox(height: AppConstants.paddingSmall),
@@ -235,6 +241,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                     color: AppConstants.textSecondary,
                   ),
                 ),
+                keyboardType: TextInputType.number,
               ),
               const SizedBox(height: AppConstants.paddingMedium),
               SizedBox(

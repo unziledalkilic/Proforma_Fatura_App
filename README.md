@@ -1,6 +1,6 @@
 # Proforma Fatura Uygulaması
 
-Flutter ile geliştirilmiş, PostgreSQL veritabanı kullanan profesyonel proforma fatura yönetim uygulaması.
+Flutter ile geliştirilmiş, Firebase veritabanı kullanan profesyonel proforma fatura yönetim uygulaması.
 
 ## 🚀 Özellikler
 
@@ -16,7 +16,7 @@ Flutter ile geliştirilmiş, PostgreSQL veritabanı kullanan profesyonel proform
 ## 🛠️ Teknolojiler
 
 - **Frontend**: Flutter (Dart)
-- **Backend**: PostgreSQL
+- **Backend**: Firebase
 - **State Management**: Provider
 - **API**: HTTP (Döviz kurları için)
 - **Navigation**: Flutter Navigator
@@ -25,7 +25,7 @@ Flutter ile geliştirilmiş, PostgreSQL veritabanı kullanan profesyonel proform
 
 - Flutter SDK (3.0+)
 - Dart SDK (3.0+)
-- PostgreSQL Server
+- Firebase hesabı
 - Android Studio / VS Code / Cursor
 
 ## 🔧 Kurulum
@@ -41,25 +41,12 @@ cd proforma-fatura-app
 flutter pub get
 ```
 
-### 3. PostgreSQL Veritabanını Kurun
-```bash
-# PostgreSQL sunucusunu başlatın
-# database_setup.sql dosyasını çalıştırın
-psql -U postgres -d postgres -f database_setup.sql
-```
+### 3. Firebase Projesini Kurun
+1. Firebase Console'da yeni proje oluşturun
+2. Android uygulamasını Firebase projesine ekleyin
+3. google-services.json dosyasını android/app/ klasörüne yerleştirin
 
-### 4. Veritabanı Bağlantısını Yapılandırın
-`lib/services/postgres_service.dart` dosyasında veritabanı bağlantı bilgilerini güncelleyin:
-
-```dart
-static const String _host = 'localhost';
-static const int _port = 5432;
-static const String _database = 'proforma_fatura';
-static const String _username = 'your_username';
-static const String _password = 'your_password';
-```
-
-### 5. Uygulamayı Çalıştırın
+### 4. Uygulamayı Çalıştırın
 ```bash
 flutter run
 ```
@@ -108,7 +95,7 @@ flutter run
 ## 🐛 Bilinen Sorunlar
 
 - [x] FlutterError (Looking up a deactivated widget's ancestor is unsafe.) - Çözüldü
-- [x] PostgreSQL bağlantı sorunları - Çözüldü
+- [x] Firebase bağlantı sorunları - Çözüldü
 - [x] Kategori filtreleme sorunları - Çözüldü
 
 ## 🤝 Katkıda Bulunma
@@ -123,7 +110,7 @@ flutter run
 ## 🙏 Teşekkürler
 
 - Flutter ekibine
-- PostgreSQL topluluğuna
+- Firebase ekibine
 - Tüm katkıda bulunanlara
 
 ---

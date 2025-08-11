@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_constants.dart';
-import '../providers/company_provider.dart';
+import '../providers/hybrid_provider.dart';
 import '../models/company_info.dart';
+import '../utils/text_formatter.dart';
 
 class CompanyInfoScreen extends StatefulWidget {
   const CompanyInfoScreen({super.key});
@@ -19,7 +20,6 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
   final _emailController = TextEditingController();
   final _websiteController = TextEditingController();
   final _taxNumberController = TextEditingController();
-  final _taxOfficeController = TextEditingController();
 
   @override
   void initState() {
@@ -37,45 +37,52 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
     _emailController.dispose();
     _websiteController.dispose();
     _taxNumberController.dispose();
-    _taxOfficeController.dispose();
     super.dispose();
   }
 
   Future<void> _loadCompanyInfo() async {
-    final companyProvider = context.read<CompanyProvider>();
-    await companyProvider.loadCompanyInfo();
-    
-    if (companyProvider.companyInfo != null) {
-      final company = companyProvider.companyInfo!;
+    final hybridProvider = context.read<HybridProvider>();
+    await hybridProvider.loadCompanyInfo();
+
+    if (hybridProvider.companyInfo != null) {
+      final company = hybridProvider.companyInfo!;
       _nameController.text = company.name;
       _addressController.text = company.address ?? '';
       _phoneController.text = company.phone ?? '';
       _emailController.text = company.email ?? '';
       _websiteController.text = company.website ?? '';
       _taxNumberController.text = company.taxNumber ?? '';
-      _taxOfficeController.text = company.taxOffice ?? '';
     }
   }
 
   Future<void> _saveCompanyInfo() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final companyProvider = context.read<CompanyProvider>();
-    
+    final hybridProvider = context.read<HybridProvider>();
+
     final companyInfo = CompanyInfo(
-      id: companyProvider.companyInfo?.id ?? 0,
+      id: hybridProvider.companyInfo?.id ?? 0,
       name: _nameController.text.trim(),
-      address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-      phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-      email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
-      website: _websiteController.text.trim().isEmpty ? null : _websiteController.text.trim(),
-      taxNumber: _taxNumberController.text.trim().isEmpty ? null : _taxNumberController.text.trim(),
-      taxOffice: _taxOfficeController.text.trim().isEmpty ? null : _taxOfficeController.text.trim(),
-      createdAt: companyProvider.companyInfo?.createdAt ?? DateTime.now(),
+      address: _addressController.text.trim().isEmpty
+          ? null
+          : _addressController.text.trim(),
+      phone: _phoneController.text.trim().isEmpty
+          ? null
+          : _phoneController.text.trim(),
+      email: _emailController.text.trim().isEmpty
+          ? null
+          : _emailController.text.trim(),
+      website: _websiteController.text.trim().isEmpty
+          ? null
+          : _websiteController.text.trim(),
+      taxNumber: _taxNumberController.text.trim().isEmpty
+          ? null
+          : _taxNumberController.text.trim(),
+      createdAt: hybridProvider.companyInfo?.createdAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
     );
 
-    final success = await companyProvider.saveCompanyInfo(companyInfo);
+    final success = await hybridProvider.saveCompanyInfo(companyInfo);
 
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -87,7 +94,7 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(companyProvider.error ?? 'Kaydetme başarısız'),
+          content: Text(hybridProvider.error ?? 'Kaydetme başarısız'),
           backgroundColor: Colors.red,
         ),
       );
@@ -105,8 +112,8 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
         elevation: 0,
       ),
       body: SafeArea(
-        child: Consumer<CompanyProvider>(
-          builder: (context, companyProvider, child) {
+        child: Consumer<HybridProvider>(
+          builder: (context, hybridProvider, child) {
             return SingleChildScrollView(
               padding: const EdgeInsets.all(AppConstants.paddingLarge),
               child: Form(
@@ -156,6 +163,8 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
                         hintText: 'Şirketinizin tam adı',
                         prefixIcon: Icon(Icons.business),
                       ),
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: [CapitalizeWordsFormatter()],
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Şirket adı gerekli';
@@ -175,6 +184,8 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
                         prefixIcon: Icon(Icons.location_on),
                         alignLabelWithHint: true,
                       ),
+                      textCapitalization: TextCapitalization.sentences,
+                      inputFormatters: [CapitalizeFirstFormatter()],
                     ),
                     const SizedBox(height: 20),
 
@@ -199,9 +210,12 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
                         hintText: 'info@sirketiniz.com',
                         prefixIcon: Icon(Icons.email),
                       ),
+                      inputFormatters: [LowerCaseFormatter()],
                       validator: (value) {
                         if (value != null && value.isNotEmpty) {
-                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                          if (!RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(value)) {
                             return 'Geçerli bir e-posta adresi girin';
                           }
                         }
@@ -219,6 +233,7 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
                         hintText: 'www.sirketiniz.com',
                         prefixIcon: Icon(Icons.language),
                       ),
+                      inputFormatters: [LowerCaseFormatter()],
                     ),
                     const SizedBox(height: 20),
 
@@ -231,22 +246,13 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
                         prefixIcon: Icon(Icons.receipt),
                       ),
                     ),
-                    const SizedBox(height: 20),
-
-                    // Vergi Dairesi
-                    TextFormField(
-                      controller: _taxOfficeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Vergi Dairesi',
-                        hintText: 'Kadıköy Vergi Dairesi',
-                        prefixIcon: Icon(Icons.account_balance),
-                      ),
-                    ),
                     const SizedBox(height: 32),
 
                     // Kaydet butonu
                     ElevatedButton(
-                      onPressed: companyProvider.isLoading ? null : _saveCompanyInfo,
+                      onPressed: hybridProvider.isLoading
+                          ? null
+                          : _saveCompanyInfo,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppConstants.primaryColor,
                         foregroundColor: Colors.white,
@@ -259,7 +265,7 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
                           ),
                         ),
                       ),
-                      child: companyProvider.isLoading
+                      child: hybridProvider.isLoading
                           ? const SizedBox(
                               height: 20,
                               width: 20,
@@ -281,4 +287,4 @@ class _CompanyInfoScreenState extends State<CompanyInfoScreen> {
       ),
     );
   }
-} 
+}

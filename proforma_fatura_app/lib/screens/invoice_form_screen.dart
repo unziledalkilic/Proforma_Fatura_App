@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/invoice_item.dart';
 import '../models/product.dart';
-import '../providers/customer_provider.dart';
-import '../providers/invoice_provider.dart';
-import '../providers/product_provider.dart';
+import '../providers/hybrid_provider.dart';
+import '../utils/text_formatter.dart';
 import 'pdf_preview_screen.dart';
 
 class InvoiceFormScreen extends StatefulWidget {
@@ -41,11 +42,13 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   final _taxRateController = TextEditingController();
   final _itemNotesController = TextEditingController();
   Product? _selectedProduct;
+  // Satıcı şirket seçimi
+  String? _selectedCompanyId; // firebaseId veya null
 
   @override
   void initState() {
     super.initState();
-    print('🔄 InvoiceFormScreen initState başladı');
+    debugPrint('🔄 InvoiceFormScreen initState başladı');
 
     // Düzenleme modu ise mevcut fatura bilgilerini yükle
     if (widget.invoice != null) {
@@ -54,11 +57,11 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       try {
         _invoiceNumberController.text =
             'PF-${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}-${(1000 + DateTime.now().millisecondsSinceEpoch % 9000)}';
-        print(
+        debugPrint(
           '✅ Fatura numarası oluşturuldu: ${_invoiceNumberController.text}',
         );
       } catch (e) {
-        print('❌ Fatura numarası oluşturma hatası: $e');
+        debugPrint('❌ Fatura numarası oluşturma hatası: $e');
       }
     }
 
@@ -66,19 +69,20 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCustomers();
       _loadProducts();
+      context.read<HybridProvider>().loadCompanyProfiles();
     });
 
-    print('✅ InvoiceFormScreen initState tamamlandı');
+    debugPrint('✅ InvoiceFormScreen initState tamamlandı');
   }
 
   Future<void> _loadCustomers() async {
-    final customerProvider = context.read<CustomerProvider>();
-    await customerProvider.loadCustomers();
+    final hybridProvider = context.read<HybridProvider>();
+    await hybridProvider.loadCustomers();
   }
 
   Future<void> _loadProducts() async {
-    final productProvider = context.read<ProductProvider>();
-    await productProvider.loadProducts();
+    final hybridProvider = context.read<HybridProvider>();
+    await hybridProvider.loadProducts();
   }
 
   void _loadInvoiceData(Invoice invoice) {
@@ -91,37 +95,41 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     _customerPhoneController.text = invoice.customer.phone ?? '';
     _customerEmailController.text = invoice.customer.email ?? '';
     _customerTaxNumberController.text = invoice.customer.taxNumber ?? '';
+
     _selectedCustomerId = invoice.customer.id.toString();
 
     // Fatura ürünlerini yükle
     _invoiceItems = List.from(invoice.items);
 
-    print('✅ Fatura bilgileri yüklendi: ${invoice.id}');
-    print('📄 Fatura numarası: ${invoice.invoiceNumber}');
-    print('📦 Ürün sayısı: ${invoice.items.length}');
-    
+    debugPrint('✅ Fatura bilgileri yüklendi: ${invoice.id}');
+    debugPrint('📄 Fatura numarası: ${invoice.invoiceNumber}');
+    debugPrint('📦 Ürün sayısı: ${invoice.items.length}');
+
     // Debug: Mevcut ürünlerin invoiceId'lerini kontrol et
     for (int i = 0; i < invoice.items.length; i++) {
-      print('  Mevcut ürün $i: ${invoice.items[i].product.name}, InvoiceId: ${invoice.items[i].invoiceId}');
+      debugPrint(
+        '  Mevcut ürün $i: ${invoice.items[i].product.name}, InvoiceId: ${invoice.items[i].invoiceId}',
+      );
     }
   }
 
   @override
   void dispose() {
-    print('🔄 InvoiceFormScreen dispose başladı');
+    debugPrint('🔄 InvoiceFormScreen dispose başladı');
     _invoiceNumberController.dispose();
     _customerNameController.dispose();
     _customerAddressController.dispose();
     _customerPhoneController.dispose();
     _customerEmailController.dispose();
     _customerTaxNumberController.dispose();
+
     _quantityController.dispose();
     _unitPriceController.dispose();
     _discountRateController.dispose();
     _taxRateController.dispose();
     _itemNotesController.dispose();
     super.dispose();
-    print('✅ InvoiceFormScreen dispose tamamlandı');
+    debugPrint('✅ InvoiceFormScreen dispose tamamlandı');
   }
 
   void _onCustomerSelected(String? customerId) {
@@ -131,8 +139,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
     if (customerId != null) {
       // Seçilen müşterinin bilgilerini yükle
-      final customerProvider = context.read<CustomerProvider>();
-      final customer = customerProvider.customers.firstWhere(
+      final hybridProvider = context.read<HybridProvider>();
+      final customer = hybridProvider.customers.firstWhere(
         (c) => c.id.toString() == customerId,
       );
 
@@ -156,7 +164,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       _selectedProduct = product;
       if (product != null) {
         _unitPriceController.text = product.price.toString();
-        _taxRateController.text = '18.0'; // Varsayılan KDV oranı
+        _taxRateController.text =
+            '18'; // Varsayılan KDV oranı (tam sayı gösterim)
       } else {
         _unitPriceController.clear();
         _taxRateController.clear();
@@ -255,10 +264,10 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   }
 
   Future<void> _saveInvoice() async {
-    print('🔄 _saveInvoice başladı');
+    debugPrint('🔄 _saveInvoice başladı');
 
     if (!_formKey.currentState!.validate()) {
-      print('❌ Form validasyonu başarısız');
+      debugPrint('❌ Form validasyonu başarısız');
       return;
     }
 
@@ -277,14 +286,13 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     });
 
     try {
-      final customerProvider = context.read<CustomerProvider>();
-      final invoiceProvider = context.read<InvoiceProvider>();
+      final hybridProvider = context.read<HybridProvider>();
 
       // Önce müşteriyi kaydet (eğer yeni müşteriyse)
       Customer customer;
       if (_selectedCustomerId != null) {
         // Mevcut müşteri seçilmişse
-        customer = customerProvider.customers.firstWhere(
+        customer = hybridProvider.customers.firstWhere(
           (c) => c.id.toString() == _selectedCustomerId,
         );
       } else {
@@ -295,18 +303,19 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           phone: _customerPhoneController.text.trim(),
           address: _customerAddressController.text.trim(),
           taxNumber: _customerTaxNumberController.text.trim(),
+
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
 
         // Müşteriyi veritabanına kaydet
-        final success = await customerProvider.addCustomer(customer);
+        final success = await hybridProvider.addCustomer(customer);
         if (!success) {
           throw Exception('Müşteri kaydedilemedi');
         }
 
         // Yeni eklenen müşteriyi al
-        customer = customerProvider.customers.last;
+        customer = hybridProvider.customers.last;
       }
 
       // Fatura oluştur veya güncelle
@@ -315,31 +324,35 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
       if (widget.invoice != null) {
         // Düzenleme modu - mevcut faturayı güncelle
-        print('🔄 Fatura güncelleme başladı');
-        print('📄 Orijinal fatura ID: ${widget.invoice!.id}');
-        print('📄 Orijinal fatura numarası: ${widget.invoice!.invoiceNumber}');
-        print('📦 Mevcut ürün sayısı: ${_invoiceItems.length}');
-        
+        debugPrint('🔄 Fatura güncelleme başladı');
+        debugPrint('📄 Orijinal fatura ID: ${widget.invoice!.id}');
+        debugPrint(
+          '📄 Orijinal fatura numarası: ${widget.invoice!.invoiceNumber}',
+        );
+        debugPrint('📦 Mevcut ürün sayısı: ${_invoiceItems.length}');
+
         // Debug: Her ürünün invoiceId'sini kontrol et
         for (int i = 0; i < _invoiceItems.length; i++) {
-          print('  Ürün $i: ${_invoiceItems[i].product.name}, InvoiceId: ${_invoiceItems[i].invoiceId}');
+          debugPrint(
+            '  Ürün $i: ${_invoiceItems[i].product.name}, InvoiceId: ${_invoiceItems[i].invoiceId}',
+          );
         }
-        
+
         invoice = widget.invoice!.copyWith(
           invoiceNumber: _invoiceNumberController.text.trim(),
           customer: customer,
           items: _invoiceItems,
           updatedAt: DateTime.now(),
         );
-        
-        print('📄 Güncellenmiş fatura ID: ${invoice.id}');
-        print('📄 Güncellenmiş fatura numarası: ${invoice.invoiceNumber}');
-        
-        success = await invoiceProvider.updateInvoice(invoice);
+
+        debugPrint('📄 Güncellenmiş fatura ID: ${invoice.id}');
+        debugPrint('📄 Güncellenmiş fatura numarası: ${invoice.invoiceNumber}');
+
+        success = await hybridProvider.updateInvoice(invoice);
         if (!success) {
           throw Exception('Fatura güncellenemedi');
         }
-        print('✅ Fatura başarıyla güncellendi');
+        debugPrint('✅ Fatura başarıyla güncellendi');
       } else {
         // Yeni fatura oluştur
         invoice = Invoice(
@@ -348,26 +361,26 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           invoiceDate: DateTime.now(),
           dueDate: DateTime.now().add(const Duration(days: 30)), // 30 gün vade
           items: _invoiceItems,
-          status: InvoiceStatus.draft,
+
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
-        success = await invoiceProvider.addInvoice(invoice);
+        success = await hybridProvider.addInvoice(invoice);
         if (!success) {
           throw Exception('Fatura kaydedilemedi');
         }
-        print('✅ Fatura başarıyla oluşturuldu');
+        debugPrint('✅ Fatura başarıyla oluşturuldu');
       }
 
-      print('✅ Fatura başarıyla kaydedildi');
-      print('📄 Fatura Numarası: ${invoice.invoiceNumber}');
-      print('👤 Müşteri: ${customer.name}');
-      print('📦 Ürün Sayısı: ${_invoiceItems.length}');
-      print('💰 Toplam Tutar: ₺${_calculateTotal().toStringAsFixed(2)}');
+      debugPrint('✅ Fatura başarıyla kaydedildi');
+      debugPrint('📄 Fatura Numarası: ${invoice.invoiceNumber}');
+      debugPrint('👤 Müşteri: ${customer.name}');
+      debugPrint('📦 Ürün Sayısı: ${_invoiceItems.length}');
+      debugPrint('💰 Toplam Tutar: ₺${_calculateTotal().toStringAsFixed(2)}');
 
       if (mounted) {
         Navigator.of(context).pop(true);
-        
+
         // Yeni fatura oluşturulduysa PDF önizleme ekranına yönlendir
         if (widget.invoice == null) {
           // Kısa bir gecikme ile PDF önizleme ekranını aç
@@ -381,19 +394,21 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
             }
           });
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.invoice != null 
-              ? 'Fatura başarıyla güncellendi!' 
-              : 'Fatura başarıyla oluşturuldu! PDF önizleme açılıyor...'),
+            content: Text(
+              widget.invoice != null
+                  ? 'Fatura başarıyla güncellendi!'
+                  : 'Fatura başarıyla oluşturuldu! PDF önizleme açılıyor...',
+            ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
         );
       }
     } catch (e) {
-      print('❌ Fatura kaydetme hatası: $e');
+      debugPrint('❌ Fatura kaydetme hatası: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -414,7 +429,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('🔄 InvoiceFormScreen build çağrıldı');
+    debugPrint('🔄 InvoiceFormScreen build çağrıldı');
 
     return Scaffold(
       appBar: AppBar(
@@ -436,8 +451,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         ],
       ),
       body: SafeArea(
-        child: Consumer2<CustomerProvider, ProductProvider>(
-          builder: (context, customerProvider, productProvider, child) {
+        child: Consumer<HybridProvider>(
+          builder: (context, hybridProvider, child) {
             return Form(
               key: _formKey,
               child: Padding(
@@ -453,6 +468,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                           labelText: 'Fatura Numarası *',
                           border: OutlineInputBorder(),
                         ),
+                        inputFormatters: [InvoiceNumberFormatter()],
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Fatura numarası gerekli';
@@ -463,6 +479,86 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                       const SizedBox(height: 16),
 
                       // Kayıtlı Müşteri Seçimi
+                      // Satıcı Şirket Seçimi
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Satıcı Şirket',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Consumer<HybridProvider>(
+                                builder: (context, provider, _) {
+                                  final companies = provider.companies;
+                                  return DropdownButtonFormField<String>(
+                                    value: _selectedCompanyId,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Şirket Seçin',
+                                      border: OutlineInputBorder(),
+                                      prefixIcon: Icon(Icons.business),
+                                    ),
+                                    items: [
+                                      const DropdownMenuItem<String>(
+                                        value: null,
+                                        child: Text('Varsayılan Profil'),
+                                      ),
+                                      ...companies.map(
+                                        (c) => DropdownMenuItem(
+                                          value: c.firebaseId,
+                                          child: Text(c.name),
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _selectedCompanyId = val;
+                                      });
+                                      final selected = companies.firstWhere(
+                                        (c) => c.firebaseId == val,
+                                        orElse: () =>
+                                            provider.selectedCompany ??
+                                            (companies.isNotEmpty
+                                                ? companies.first
+                                                : null)!,
+                                      );
+                                      provider.selectCompany(
+                                        val == null ? null : selected,
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Seçili şirket detay bilgileri
+                              Consumer<HybridProvider>(
+                                builder: (context, provider, _) {
+                                  return Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue[50],
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.blue[200]!,
+                                      ),
+                                    ),
+                                    child: _buildCompanyDetails(provider),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(16.0),
@@ -477,7 +573,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              if (customerProvider.isLoading)
+                              if (hybridProvider.isLoading)
                                 const Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(16.0),
@@ -492,20 +588,33 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                     border: OutlineInputBorder(),
                                     prefixIcon: Icon(Icons.person_search),
                                   ),
-                                  items: [
-                                    const DropdownMenuItem<String>(
-                                      value: null,
-                                      child: Text('Yeni Müşteri'),
-                                    ),
-                                    ...customerProvider.customers.map((
-                                      customer,
-                                    ) {
-                                      return DropdownMenuItem<String>(
-                                        value: customer.id.toString(),
-                                        child: Text(customer.name),
-                                      );
-                                    }),
-                                  ],
+                                  items: () {
+                                    final set = <String>{};
+                                    final items = <DropdownMenuItem<String>>[];
+                                    // Yeni müşteri seçeneği
+                                    items.add(
+                                      const DropdownMenuItem<String>(
+                                        value: null,
+                                        child: Text('Yeni Müşteri'),
+                                      ),
+                                    );
+                                    // Tekilleştirilmiş müşteri listesi (firebaseId/id/name bazlı)
+                                    for (final c in hybridProvider.customers) {
+                                      final key =
+                                          (c.firebaseId ?? c.id ?? c.name)
+                                              .toString()
+                                              .toLowerCase();
+                                      if (set.add(key)) {
+                                        items.add(
+                                          DropdownMenuItem<String>(
+                                            value: c.id?.toString(),
+                                            child: Text(c.name),
+                                          ),
+                                        );
+                                      }
+                                    }
+                                    return items;
+                                  }(),
                                   onChanged: _onCustomerSelected,
                                 ),
                             ],
@@ -537,6 +646,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.business),
                         ),
+                        textCapitalization: TextCapitalization.words,
+                        inputFormatters: [CapitalizeWordsFormatter()],
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Alıcı adı gerekli';
@@ -594,6 +705,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                 prefixIcon: Icon(Icons.email),
                               ),
                               keyboardType: TextInputType.emailAddress,
+                              inputFormatters: [LowerCaseFormatter()],
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
                                   return 'E-posta gerekli';
@@ -615,20 +727,11 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                       TextFormField(
                         controller: _customerTaxNumberController,
                         decoration: const InputDecoration(
-                          labelText: 'Vergi Numarası (VKN/TCKN) *',
+                          labelText: 'Vergi Numarası (VKN/TCKN)',
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.receipt_long),
                         ),
                         keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Vergi numarası gerekli';
-                          }
-                          if (value.length < 10 || value.length > 11) {
-                            return 'Vergi numarası 10-11 haneli olmalı';
-                          }
-                          return null;
-                        },
                       ),
                       const SizedBox(height: 32),
 
@@ -649,7 +752,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                               const SizedBox(height: 16),
 
                               // Ürün Seçimi
-                              if (productProvider.isLoading)
+                              if (hybridProvider.isLoading)
                                 const Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(16.0),
@@ -664,16 +767,30 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                     border: OutlineInputBorder(),
                                     prefixIcon: Icon(Icons.inventory),
                                   ),
-                                  items: productProvider.products.map((
-                                    product,
-                                  ) {
-                                    return DropdownMenuItem<Product>(
-                                      value: product,
-                                      child: Text(
-                                        '${product.name} (₺${product.price.toStringAsFixed(2)})',
-                                      ),
-                                    );
-                                  }).toList(),
+                                  items: () {
+                                    final selectedCompanyId =
+                                        _selectedCompanyId ??
+                                        hybridProvider
+                                            .selectedCompany
+                                            ?.firebaseId;
+                                    final list = selectedCompanyId == null
+                                        ? hybridProvider.products
+                                        : hybridProvider.products
+                                              .where(
+                                                (p) =>
+                                                    p.companyId ==
+                                                    selectedCompanyId,
+                                              )
+                                              .toList();
+                                    return list.map((product) {
+                                      return DropdownMenuItem<Product>(
+                                        value: product,
+                                        child: Text(
+                                          '${product.name} (₺${product.price.toStringAsFixed(2)})',
+                                        ),
+                                      );
+                                    }).toList();
+                                  }(),
                                   onChanged: _onProductSelected,
                                 ),
                               const SizedBox(height: 16),
@@ -720,6 +837,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                           labelText: 'İndirim Oranı (%)',
                                           border: OutlineInputBorder(),
                                           prefixIcon: Icon(Icons.discount),
+                                          suffixText: '%',
                                         ),
                                         keyboardType: TextInputType.number,
                                       ),
@@ -732,8 +850,13 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                           labelText: 'KDV Oranı (%) *',
                                           border: OutlineInputBorder(),
                                           prefixIcon: Icon(Icons.receipt),
+                                          suffixText: '%',
                                         ),
                                         keyboardType: TextInputType.number,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter
+                                              .digitsOnly,
+                                        ],
                                       ),
                                     ),
                                   ],
@@ -976,6 +1099,171 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildCompanyDetails(HybridProvider provider) {
+    // Seçili şirketi belirle
+    final selectedCompany = _selectedCompanyId != null
+        ? provider.companies.firstWhere(
+            (c) => c.firebaseId == _selectedCompanyId,
+            orElse: () => provider.selectedCompany!,
+          )
+        : null;
+
+    final user = provider.appUser;
+
+    if (selectedCompany != null) {
+      // Şirket profili seçilmişse şirket bilgilerini göster
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (selectedCompany.logo != null &&
+                  selectedCompany.logo!.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: (selectedCompany.logo!.startsWith('http')
+                      ? Image.network(
+                          selectedCompany.logo!,
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                        )
+                      : Image.file(
+                          File(selectedCompany.logo!),
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                        )),
+                )
+              else
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.blue[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Icon(
+                    Icons.business,
+                    size: 16,
+                    color: Colors.blue[700],
+                  ),
+                ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      selectedCompany.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const Text(
+                      'Seçili şirket profili - Bu bilgiler faturada görünecek',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.blue),
+          const SizedBox(height: 8),
+
+          // Şirket detay bilgileri
+          _buildDetailRow('Adres', selectedCompany.address ?? 'Belirtilmemiş'),
+          _buildDetailRow('Telefon', selectedCompany.phone ?? 'Belirtilmemiş'),
+          _buildDetailRow('E-posta', selectedCompany.email ?? 'Belirtilmemiş'),
+          _buildDetailRow(
+            'Vergi No',
+            selectedCompany.taxNumber ?? 'Belirtilmemiş',
+          ),
+        ],
+      );
+    } else {
+      // Varsayılan profil (kullanıcı bilgileri)
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Icon(Icons.person, size: 16, color: Colors.grey[600]),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user?.fullName ?? user?.email ?? 'Kullanıcı',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const Text(
+                      'Varsayılan profil - Kullanıcı bilgileri kullanılacak',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.grey),
+          const SizedBox(height: 8),
+
+          // Kullanıcı detay bilgileri
+          _buildDetailRow('Adres', user?.address ?? 'Belirtilmemiş'),
+          _buildDetailRow('Telefon', user?.phone ?? 'Belirtilmemiş'),
+          _buildDetailRow('E-posta', user?.email ?? 'Belirtilmemiş'),
+        ],
+      );
+    }
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+            ),
+          ),
+        ],
       ),
     );
   }

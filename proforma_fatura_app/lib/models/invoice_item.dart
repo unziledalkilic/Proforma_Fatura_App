@@ -1,8 +1,8 @@
 import 'product.dart';
 
 class InvoiceItem {
-  final int? id;
-  final int? invoiceId; // Opsiyonel yapıldı, fatura kaydedilirken atanacak
+  final String? id;
+  final String? invoiceId; // Opsiyonel yapıldı, fatura kaydedilirken atanacak
   final Product product;
   final double quantity;
   final double unitPrice;
@@ -45,32 +45,34 @@ class InvoiceItem {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'invoiceId': invoiceId,
-      'productId': product.id,
+      'invoice_id': invoiceId, // SQLite için snake_case
+      'product_id': product.id, // SQLite için snake_case
       'quantity': quantity,
-      'unitPrice': unitPrice,
-      'discountRate': discountRate,
-      'taxRate': taxRate,
+      'unit_price': unitPrice, // SQLite için snake_case
+      'discount_rate': discountRate, // SQLite için snake_case
+      'tax_rate': taxRate, // SQLite için snake_case
       'notes': notes,
+      'created_at': DateTime.now().toIso8601String(), // SQLite için gerekli
+      'updated_at': DateTime.now().toIso8601String(), // SQLite için gerekli
     };
   }
 
   factory InvoiceItem.fromMap(Map<String, dynamic> map, Product product) {
     return InvoiceItem(
-      id: map['id'],
-      invoiceId: map['invoiceId'] as int?,
+      id: map['id']?.toString(),
+      invoiceId: map['invoice_id']?.toString() ?? map['invoiceId']?.toString(),
       product: product,
-      quantity: map['quantity'].toDouble(),
-      unitPrice: map['unitPrice'].toDouble(),
-      discountRate: map['discountRate']?.toDouble(),
-      taxRate: map['taxRate']?.toDouble(),
+      quantity: (map['quantity'] ?? 0.0).toDouble(),
+      unitPrice: (map['unit_price'] ?? map['unitPrice'] ?? 0.0).toDouble(),
+      discountRate: (map['discount_rate'] ?? map['discountRate'])?.toDouble(),
+      taxRate: (map['tax_rate'] ?? map['taxRate'])?.toDouble(),
       notes: map['notes'],
     );
   }
 
   InvoiceItem copyWith({
-    int? id,
-    int? invoiceId,
+    String? id,
+    String? invoiceId,
     Product? product,
     double? quantity,
     double? unitPrice,

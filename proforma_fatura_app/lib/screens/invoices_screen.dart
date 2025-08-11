@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:io';
 import '../constants/app_constants.dart';
-import '../providers/invoice_provider.dart';
+import '../providers/hybrid_provider.dart';
 import '../services/pdf_service.dart';
 import 'invoice_form_screen.dart';
 import 'invoice_detail_screen.dart';
@@ -19,13 +18,12 @@ class InvoicesScreen extends StatefulWidget {
 class _InvoicesScreenState extends State<InvoicesScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<dynamic> _filteredInvoices = [];
-  String _selectedStatus = 'all';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<InvoiceProvider>().loadInvoices();
+      context.read<HybridProvider>().loadInvoices();
     });
   }
 
@@ -37,29 +35,15 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
 
   void _filterInvoices(String query) {
     setState(() {
-      _filteredInvoices = context.read<InvoiceProvider>().searchInvoices(query);
-    });
-  }
-
-  void _filterByStatus(String status) {
-    setState(() {
-      _selectedStatus = status;
+      _filteredInvoices = context.read<HybridProvider>().searchInvoices(query);
     });
   }
 
   List<dynamic> _getFilteredInvoices() {
-    final invoiceProvider = context.read<InvoiceProvider>();
-    List<dynamic> invoices = _searchController.text.isEmpty
-        ? invoiceProvider.invoices
+    final hybridProvider = context.read<HybridProvider>();
+    return _searchController.text.isEmpty
+        ? hybridProvider.invoices
         : _filteredInvoices;
-
-    if (_selectedStatus != 'all') {
-      invoices = invoices
-          .where((invoice) => invoice.status.name == _selectedStatus)
-          .toList();
-    }
-
-    return invoices;
   }
 
   @override
@@ -100,34 +84,19 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                   onChanged: _filterInvoices,
                 ),
                 const SizedBox(height: AppConstants.paddingSmall),
-
-                // Durum filtreleri
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildStatusFilter('Tümü', 'all'),
-                      _buildStatusFilter('Taslak', 'draft'),
-                      _buildStatusFilter('Gönderildi', 'sent'),
-                      _buildStatusFilter('Kabul Edildi', 'accepted'),
-                      _buildStatusFilter('Reddedildi', 'rejected'),
-                      _buildStatusFilter('Süresi Doldu', 'expired'),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
 
           // Fatura listesi
           Expanded(
-            child: Consumer<InvoiceProvider>(
-              builder: (context, invoiceProvider, child) {
-                if (invoiceProvider.isLoading) {
+            child: Consumer<HybridProvider>(
+              builder: (context, hybridProvider, child) {
+                if (hybridProvider.isLoading) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (invoiceProvider.error != null) {
+                if (hybridProvider.error != null) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -139,14 +108,14 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          invoiceProvider.error!,
+                          hybridProvider.error!,
                           style: AppConstants.bodyStyle,
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () {
-                            invoiceProvider.loadInvoices();
+                            hybridProvider.loadInvoices();
                           },
                           child: const Text('Tekrar Dene'),
                         ),
@@ -169,48 +138,48 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          _searchController.text.isEmpty &&
-                                  _selectedStatus == 'all'
+                          _searchController.text.isEmpty
                               ? 'Henüz fatura bulunmuyor'
                               : 'Arama sonucu bulunamadı',
                           style: AppConstants.bodyStyle,
                         ),
-                        if (_searchController.text.isEmpty &&
-                            _selectedStatus == 'all') ...[
+                        if (_searchController.text.isEmpty) ...[
                           const SizedBox(height: 16),
                           ElevatedButton(
                             onPressed: () async {
-                              print('🔄 İlk Faturayı Oluştur butonuna basıldı');
+                              debugPrint(
+                                '🔄 İlk Faturayı Oluştur butonuna basıldı',
+                              );
                               try {
-                                print(
+                                debugPrint(
                                   '🔄 Navigator.push başlıyor (İlk Fatura)...',
                                 );
                                 final result = await Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (context) {
-                                      print(
+                                      debugPrint(
                                         '🔄 InvoiceFormScreen builder çağrıldı (İlk Fatura)',
                                       );
                                       return const InvoiceFormScreen();
                                     },
                                   ),
                                 );
-                                print(
+                                debugPrint(
                                   '✅ Navigator.push tamamlandı (İlk Fatura), result: $result',
                                 );
-                                if (result == true && mounted) {
-                                  print(
-                                    '🔄 InvoiceProvider.loadInvoices çağrılıyor (İlk Fatura)',
+                                if (result == true &&
+                                    mounted &&
+                                    context.mounted) {
+                                  debugPrint(
+                                    '🔄 HybridProvider.loadInvoices çağrılıyor (İlk Fatura)',
                                   );
-                                  context
-                                      .read<InvoiceProvider>()
-                                      .loadInvoices();
-                                  print(
-                                    '✅ InvoiceProvider.loadInvoices tamamlandı (İlk Fatura)',
+                                  context.read<HybridProvider>().loadInvoices();
+                                  debugPrint(
+                                    '✅ HybridProvider.loadInvoices tamamlandı (İlk Fatura)',
                                   );
                                 }
                               } catch (e) {
-                                print('❌ İlk Fatura buton hatası: $e');
+                                debugPrint('❌ İlk Fatura buton hatası: $e');
                               }
                             },
                             child: const Text('İlk Faturayı Oluştur'),
@@ -234,7 +203,11 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                         leading: CircleAvatar(
                           backgroundColor: AppConstants.warningColor,
                           child: Text(
-                            invoice.invoiceNumber.substring(0, 2),
+                            (invoice.invoiceNumber.isNotEmpty
+                                ? (invoice.invoiceNumber.length >= 2
+                                      ? invoice.invoiceNumber.substring(0, 2)
+                                      : invoice.invoiceNumber.substring(0, 1))
+                                : 'IN'),
                             style: const TextStyle(color: Colors.white),
                           ),
                         ),
@@ -249,28 +222,6 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                             Text(
                               'Tarih: ${invoice.invoiceDate.day}/${invoice.invoiceDate.month}/${invoice.invoiceDate.year}',
                               style: AppConstants.captionStyle,
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppConstants
-                                    .invoiceStatusColors[invoice.status.name],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                AppConstants.invoiceStatusLabels[invoice
-                                        .status
-                                        .name] ??
-                                    '',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
                             ),
                           ],
                         ),
@@ -315,7 +266,10 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                                   value: 'pdf',
                                   child: Row(
                                     children: [
-                                      Icon(Icons.picture_as_pdf, color: Colors.orange),
+                                      Icon(
+                                        Icons.picture_as_pdf,
+                                        color: Colors.orange,
+                                      ),
                                       SizedBox(width: 8),
                                       Text('PDF İndir'),
                                     ],
@@ -354,25 +308,25 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          print('🔄 FAB + butonuna basıldı');
+          debugPrint('🔄 FAB + butonuna basıldı');
           try {
-            print('🔄 Navigator.push başlıyor (FAB)...');
+            debugPrint('🔄 Navigator.push başlıyor (FAB)...');
             final result = await Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) {
-                  print('🔄 InvoiceFormScreen builder çağrıldı (FAB)');
+                  debugPrint('🔄 InvoiceFormScreen builder çağrıldı (FAB)');
                   return const InvoiceFormScreen();
                 },
               ),
             );
-            print('✅ Navigator.push tamamlandı (FAB), result: $result');
-            if (result == true && mounted) {
-              print('🔄 InvoiceProvider.loadInvoices çağrılıyor (FAB)');
-              context.read<InvoiceProvider>().loadInvoices();
-              print('✅ InvoiceProvider.loadInvoices tamamlandı (FAB)');
+            debugPrint('✅ Navigator.push tamamlandı (FAB), result: $result');
+            if (result == true && mounted && context.mounted) {
+              debugPrint('🔄 HybridProvider.loadInvoices çağrılıyor (FAB)');
+              context.read<HybridProvider>().loadInvoices();
+              debugPrint('✅ HybridProvider.loadInvoices tamamlandı (FAB)');
             }
           } catch (e) {
-            print('❌ FAB buton hatası: $e');
+            debugPrint('❌ FAB buton hatası: $e');
           }
         },
         backgroundColor: AppConstants.primaryColor,
@@ -403,10 +357,10 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         ),
       );
       if (result == true && mounted) {
-        context.read<InvoiceProvider>().loadInvoices();
+        context.read<HybridProvider>().loadInvoices();
       }
     } catch (e) {
-      print('❌ Fatura düzenleme hatası: $e');
+      debugPrint('❌ Fatura düzenleme hatası: $e');
     }
   }
 
@@ -432,10 +386,12 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       final filePath = await pdfService.generateInvoicePdf(invoice);
 
       // Loading dialog'u kapat
+      // ignore: use_build_context_synchronously
       Navigator.of(context).pop();
 
       // Başarı mesajı göster
       if (context.mounted) {
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('PDF başarıyla oluşturuldu: $filePath'),
@@ -452,11 +408,13 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     } catch (e) {
       // Loading dialog'u kapat
       if (context.mounted) {
+        // ignore: use_build_context_synchronously
         Navigator.of(context).pop();
       }
 
       // Hata mesajı göster
       if (context.mounted) {
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('PDF oluşturulurken hata oluştu: $e'),
@@ -491,7 +449,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
 
     if (confirmed == true && mounted) {
       try {
-        final success = await context.read<InvoiceProvider>().deleteInvoice(
+        final success = await context.read<HybridProvider>().deleteInvoice(
           invoice.id,
         );
         if (success && mounted) {
@@ -510,7 +468,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           );
         }
       } catch (e) {
-        print('❌ Fatura silme hatası: $e');
+        debugPrint('❌ Fatura silme hatası: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -521,24 +479,5 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         }
       }
     }
-  }
-
-  Widget _buildStatusFilter(String label, String status) {
-    final isSelected = _selectedStatus == status;
-    return Container(
-      margin: const EdgeInsets.only(right: AppConstants.paddingSmall),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {
-          _filterByStatus(status);
-        },
-        selectedColor: AppConstants.primaryColor,
-        checkmarkColor: Colors.white,
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.white : Colors.black87,
-        ),
-      ),
-    );
   }
 }

@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_constants.dart';
 import '../models/product.dart';
-import '../models/product_category.dart';
-import '../providers/product_provider.dart';
-import '../providers/auth_provider.dart';
+import '../providers/hybrid_provider.dart';
+import '../utils/text_formatter.dart';
 
 class ProductFormScreen extends StatefulWidget {
   final Product? product; // null ise yeni ürün, dolu ise düzenleme
@@ -24,8 +23,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _barcodeController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isCustomUnit = false;
-  final bool _isCustomPrice = false;
 
   // Önceden tanımlanmış birimler
   final List<String> _predefinedUnits = [
@@ -48,7 +45,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final List<String> _predefinedCurrencies = ['TRY', 'USD', 'EUR', 'GBP'];
 
   String _selectedCurrency = 'TRY';
-  ProductCategory? _selectedCategory;
+  String? _selectedCategory;
+  String? _selectedCompanyId;
 
   // Para birimi sembolü getir
   String _getCurrencySymbol(String currency) {
@@ -70,6 +68,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   void initState() {
     super.initState();
 
+    // Aktif şirketi otomatik seç
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final hybridProvider = context.read<HybridProvider>();
+      if (hybridProvider.selectedCompany != null) {
+        setState(() {
+          _selectedCompanyId = hybridProvider.selectedCompany!.firebaseId;
+        });
+        debugPrint(
+          '🏢 Auto-selected company: ${hybridProvider.selectedCompany!.name} (ID: ${hybridProvider.selectedCompany!.firebaseId})',
+        );
+      } else {
+        debugPrint('⚠️ No company selected - product form may fail');
+      }
+    });
+
     // Form verilerini yükle
     if (widget.product != null) {
       // Düzenleme modu - mevcut verileri yükle
@@ -79,6 +92,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       _selectedCurrency = widget.product!.currency;
       _unitController.text = widget.product!.unit;
       _barcodeController.text = widget.product!.barcode ?? '';
+      _selectedCompanyId = widget.product!.companyId;
     } else {
       // Yeni ürün - varsayılan değerler
       _unitController.text = 'Adet';
@@ -88,40 +102,37 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
         try {
-          print('🔄 Kategoriler yükleniyor...');
-          await context.read<ProductProvider>().loadCategories();
+          debugPrint('🔄 Kategoriler yükleniyor...');
+          await context.read<HybridProvider>().loadCategories();
 
           if (mounted) {
             setState(() {
-              final categories = context.read<ProductProvider>().categories;
-              print('✅ ${categories.length} kategori yüklendi');
+              final categories = context.read<HybridProvider>().categories;
+              debugPrint('✅ ${categories.length} kategori yüklendi');
 
               if (widget.product != null) {
                 // Düzenleme modu - mevcut ürünün kategorisini bul ve seç
                 if (widget.product!.category != null) {
-                  _selectedCategory = categories.firstWhere(
-                    (cat) => cat.id == widget.product!.category!.id,
-                    orElse: () => widget.product!.category!,
-                  );
-                  print(
-                    '📝 Düzenleme modu: Kategori seçildi: ${_selectedCategory?.name}',
+                  _selectedCategory = widget.product!.category;
+                  debugPrint(
+                    '📝 Düzenleme modu: Kategori seçildi: $_selectedCategory',
                   );
                 }
               } else {
                 // Yeni ürün için varsayılan kategori seç (ilk kategori)
                 if (categories.isNotEmpty) {
                   _selectedCategory = categories.first;
-                  print(
-                    '🆕 Yeni ürün: Varsayılan kategori seçildi: ${_selectedCategory?.name}',
+                  debugPrint(
+                    '🆕 Yeni ürün: Varsayılan kategori seçildi: $_selectedCategory',
                   );
                 } else {
-                  print('⚠️ Hiç kategori bulunamadı!');
+                  debugPrint('⚠️ Hiç kategori bulunamadı!');
                 }
               }
             });
           }
         } catch (e) {
-          print('❌ initState kategori yükleme hatası: $e');
+          debugPrint('❌ initState kategori yükleme hatası: $e');
         }
       }
     });
@@ -161,8 +172,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       final price = double.tryParse(_priceController.text) ?? 0.0;
 
       // Mevcut kullanıcının ID'sini al
-      final currentUser = context.read<AuthProvider>().currentUser;
-      if (currentUser?.id == null) {
+      final currentUser = context.read<HybridProvider>().currentUser;
+      if (currentUser?.uid == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Kullanıcı bilgisi bulunamadı'),
@@ -172,9 +183,23 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         return;
       }
 
+      // Debug: Şirket ID'si kontrolü
+      if (_selectedCompanyId == null) {
+        debugPrint('❌ HATA: Şirket ID null! Ürün kaydedilemeyecek.');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Şirket seçimi yapılmadı. Lütfen bir şirket seçin.'),
+            backgroundColor: AppConstants.errorColor,
+          ),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
       final product = Product(
-        id: widget.product?.id ?? 0,
-        userId: currentUser!.id!,
+        id: widget.product?.id,
+        userId: currentUser!.uid,
+        companyId: _selectedCompanyId,
         name: _nameController.text,
         description: _descriptionController.text.isEmpty
             ? null
@@ -190,17 +215,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         updatedAt: DateTime.now(),
       );
 
+      debugPrint(
+        '💾 Saving product: ${product.name} for company: $_selectedCompanyId',
+      );
+
       if (!mounted) return;
 
-      final productProvider = context.read<ProductProvider>();
+      final hybridProvider = context.read<HybridProvider>();
       bool success;
 
       if (widget.product == null) {
         // Yeni ürün ekle
-        success = await productProvider.addProduct(product);
+        success = await hybridProvider.addProduct(product);
       } else {
         // Mevcut ürünü güncelle
-        success = await productProvider.updateProduct(product);
+        success = await hybridProvider.updateProduct(product);
       }
 
       if (!mounted) return;
@@ -222,7 +251,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(productProvider.error ?? 'Bir hata oluştu'),
+            content: Text(hybridProvider.error ?? 'Bir hata oluştu'),
             backgroundColor: AppConstants.errorColor,
           ),
         );
@@ -253,7 +282,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       appBar: AppBar(
         title: Text(isEditing ? 'Ürün Düzenle' : 'Yeni Ürün'),
         backgroundColor: AppConstants.primaryColor,
-        foregroundColor: Colors.white,
+        foregroundColor: AppConstants.textOnPrimary,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -310,11 +339,41 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   hintText: 'Ürün adını girin',
                   prefixIcon: Icon(Icons.inventory),
                 ),
+                textCapitalization: TextCapitalization.words,
+                inputFormatters: [CapitalizeWordsFormatter()],
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Ürün adı gerekli';
                   }
                   return null;
+                },
+              ),
+              const SizedBox(height: 20),
+
+              Consumer<HybridProvider>(
+                builder: (context, provider, _) {
+                  final companies = provider.companies;
+                  return DropdownButtonFormField<String>(
+                    value: _selectedCompanyId,
+                    decoration: const InputDecoration(
+                      labelText: 'Şirket *',
+                      hintText: 'Bu ürün hangi şirket için?',
+                      prefixIcon: Icon(Icons.business),
+                    ),
+                    items: companies
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c.firebaseId,
+                            child: Text(c.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) =>
+                        setState(() => _selectedCompanyId = val),
+                    validator: (val) => (val == null || val.isEmpty)
+                        ? 'Şirket seçimi gerekli'
+                        : null,
+                  );
                 },
               ),
               const SizedBox(height: 20),
@@ -329,6 +388,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   prefixIcon: Icon(Icons.description),
                   alignLabelWithHint: true,
                 ),
+                textCapitalization: TextCapitalization.sentences,
+                inputFormatters: [CapitalizeFirstFormatter()],
               ),
               const SizedBox(height: 20),
 
@@ -345,7 +406,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       decoration: InputDecoration(
                         labelText: 'Fiyat *',
                         hintText: '0.00',
-                        prefixIcon: const Icon(Icons.attach_money),
+                        prefixIcon: Container(
+                          width: 48,
+                          alignment: Alignment.center,
+                          child: Text(
+                            _getCurrencySymbol(_selectedCurrency),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppConstants.primaryColor,
+                            ),
+                          ),
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -363,14 +435,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppConstants.borderColor),
+                        borderRadius: BorderRadius.circular(
+                          AppConstants.borderRadius,
+                        ),
                       ),
                       child: PopupMenuButton<String>(
                         initialValue: _selectedCurrency,
                         onSelected: (value) {
                           setState(() {
                             _selectedCurrency = value;
+                            // Fiyat kutusundaki para birimi simgesi de otomatik güncellenecek
                           });
                         },
                         child: Padding(
@@ -426,7 +501,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                           onSelected: (value) {
                             setState(() {
                               _unitController.text = value;
-                              _isCustomUnit = false;
                             });
                           },
                           itemBuilder: (context) => [
@@ -442,10 +516,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                           ],
                         ),
                       ),
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: [CapitalizeWordsFormatter()],
                       onChanged: (value) {
-                        setState(() {
-                          _isCustomUnit = !_predefinedUnits.contains(value);
-                        });
+                        // Unit değiştiğinde herhangi bir işlem yapmaya gerek yok
                       },
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -460,17 +534,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               const SizedBox(height: 20),
 
               // Kategori
-              Consumer<ProductProvider>(
-                builder: (context, productProvider, child) {
-                  final categories = productProvider.categories;
+              Consumer<HybridProvider>(
+                builder: (context, hybridProvider, child) {
+                  final categories = hybridProvider.categories;
 
                   // Debug mesajı
-                  print(
+                  debugPrint(
                     '🔍 ProductFormScreen - Kategori sayısı: ${categories.length}',
                   );
                   if (categories.isNotEmpty) {
-                    print(
-                      '📋 Mevcut kategoriler: ${categories.map((c) => c.name).join(', ')}',
+                    debugPrint(
+                      '📋 Mevcut kategoriler: ${categories.join(', ')}',
                     );
                   }
 
@@ -482,7 +556,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: Colors.grey[700],
+                          color: AppConstants.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -491,10 +565,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                           Expanded(
                             child: Container(
                               decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade400),
-                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: AppConstants.borderColor,
+                                ),
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.borderRadius,
+                                ),
                               ),
-                              child: PopupMenuButton<ProductCategory?>(
+                              child: PopupMenuButton<String?>(
                                 enabled: categories.isNotEmpty,
                                 initialValue: _selectedCategory,
                                 onSelected: (category) {
@@ -502,9 +580,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                   setState(() {
                                     _selectedCategory = category;
                                   });
-                                  print(
-                                    '🎯 Kategori seçildi: ${category?.name}',
-                                  );
+                                  debugPrint('🎯 Kategori seçildi: $category');
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -515,23 +591,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       if (_selectedCategory != null) ...[
-                                        Container(
-                                          width: 16,
-                                          height: 16,
-                                          decoration: BoxDecoration(
-                                            color: Color(
-                                              int.parse(
-                                                _selectedCategory!.color
-                                                    .replaceAll('#', '0xFF'),
-                                              ),
-                                            ),
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
-                                            _selectedCategory!.name,
+                                            _selectedCategory!,
                                             style: const TextStyle(
                                               fontSize: 16,
                                             ),
@@ -543,7 +605,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                           'Kategori Seçin',
                                           style: TextStyle(
                                             fontSize: 16,
-                                            color: Colors.grey[600],
+                                            color: AppConstants.textSecondary,
                                           ),
                                         ),
                                       const SizedBox(width: 4),
@@ -564,27 +626,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                     ...categories.map(
                                       (category) => PopupMenuItem(
                                         value: category,
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 16,
-                                              height: 16,
-                                              decoration: BoxDecoration(
-                                                color: Color(
-                                                  int.parse(
-                                                    category.color.replaceAll(
-                                                      '#',
-                                                      '0xFF',
-                                                    ),
-                                                  ),
-                                                ),
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(category.name),
-                                          ],
-                                        ),
+                                        child: Text(category),
                                       ),
                                     ),
                                 ],
@@ -615,7 +657,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 onPressed: _isLoading ? null : _saveProduct,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppConstants.primaryColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppConstants.textOnPrimary,
                   padding: const EdgeInsets.symmetric(
                     vertical: AppConstants.paddingMedium,
                   ),
@@ -632,7 +674,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
+                            AppConstants.textOnPrimary,
                           ),
                         ),
                       )

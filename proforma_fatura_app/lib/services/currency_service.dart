@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -13,18 +14,18 @@ class CurrencyService {
 
   /// TCMB'den güncel döviz kurlarını çeker
   static Future<Map<String, double>> getExchangeRates() async {
-    print('🔄 Doviz kurlari getiriliyor...');
+    debugPrint('🔄 Doviz kurlari getiriliyor...');
 
     // Cache kontrolü - 15 dakikadan yeniyse cache'den döndür
     if (_cachedRates != null &&
         _lastUpdate != null &&
         DateTime.now().difference(_lastUpdate!) < _cacheTimeout) {
-      print('✅ Cache\'den doviz kurlari donduruluyor: $_cachedRates');
+      debugPrint('✅ Cache\'den doviz kurlari donduruluyor: $_cachedRates');
       return _cachedRates!;
     }
 
     try {
-      print('🌐 API\'ye istek gonderiliyor: $_baseUrl');
+      debugPrint('🌐 API\'ye istek gonderiliyor: $_baseUrl');
       final response = await http
           .get(
             Uri.parse(_baseUrl),
@@ -35,17 +36,17 @@ class CurrencyService {
           )
           .timeout(const Duration(seconds: 10));
 
-      print('📡 API yaniti alindi: ${response.statusCode}');
-      print('📄 API yanit icerigi: ${response.body.substring(0, 200)}...');
+      debugPrint('📡 API yaniti alindi: ${response.statusCode}');
+      debugPrint('📄 API yanit icerigi: ${response.body.substring(0, 200)}...');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
-        print('📊 API verisi parse edildi');
+        debugPrint('📊 API verisi parse edildi');
 
         if (data['TCMB_AnlikKurBilgileri'] != null &&
             data['TCMB_AnlikKurBilgileri'] is List) {
           final List<dynamic> currencies = data['TCMB_AnlikKurBilgileri'];
-          print('💰 ${currencies.length} para birimi bulundu');
+          debugPrint('💰 ${currencies.length} para birimi bulundu');
           final Map<String, double> rates = {};
 
           // Her bir para birimini işle
@@ -68,7 +69,7 @@ class CurrencyService {
                   );
                   if (normalizedCode.isNotEmpty) {
                     rates[normalizedCode] = rate;
-                    print(
+                    debugPrint(
                       '💱 $currencyCode -> $normalizedCode: $forexSelling -> ${rate.toStringAsFixed(4)}',
                     );
                   }
@@ -80,7 +81,7 @@ class CurrencyService {
           // Cache'i güncelle
           _cachedRates = rates;
           _lastUpdate = DateTime.now();
-          print('✅ Cache guncellendi: ${rates.length} para birimi');
+          debugPrint('✅ Cache guncellendi: ${rates.length} para birimi');
 
           return rates;
         } else {
@@ -90,14 +91,14 @@ class CurrencyService {
         throw Exception('API yanıtı başarısız: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Doviz kurlari getirme hatasi: $e');
+      debugPrint('❌ Doviz kurlari getirme hatasi: $e');
       // Hata durumunda cache varsa onu döndür
       if (_cachedRates != null) {
-        print('✅ Hata durumunda cache kullaniliyor: $_cachedRates');
+        debugPrint('✅ Hata durumunda cache kullaniliyor: $_cachedRates');
         return _cachedRates!;
       }
       // Cache de yoksa varsayılan değerler döndür
-      print('⚠️ Varsayilan degerler kullaniliyor');
+      debugPrint('⚠️ Varsayilan degerler kullaniliyor');
       return _getDefaultRates();
     }
   }
@@ -186,7 +187,7 @@ class CurrencyService {
       'GBP': 43.80,
       'JPY': 0.23,
     };
-    print('📊 Varsayilan kurlar donduruluyor: $defaultRates');
+    debugPrint('📊 Varsayilan kurlar donduruluyor: $defaultRates');
     return defaultRates;
   }
 

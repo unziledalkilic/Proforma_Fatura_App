@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/app_constants.dart';
+import '../utils/text_formatter.dart';
 import '../models/invoice.dart';
 import '../models/company_info.dart';
 
@@ -167,20 +168,6 @@ class InvoicePreviewScreen extends StatelessWidget {
                 ),
               ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppConstants.invoiceStatusColors[invoice.status.name],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                AppConstants.invoiceStatusLabels[invoice.status.name] ?? '',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -207,7 +194,9 @@ class InvoicePreviewScreen extends StatelessWidget {
                     Expanded(flex: 3, child: Text(item.product.name)),
                     Expanded(
                       flex: 1,
-                      child: Text('${item.quantity} ${item.product.unit}'),
+                      child: Text(
+                        '${TextFormatter.formatQuantity(item.quantity)} ${item.product.unit}',
+                      ),
                     ),
                     Expanded(
                       flex: 1,
@@ -257,7 +246,7 @@ class InvoicePreviewScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'İndirim (%${invoice.discountRate!.toStringAsFixed(1)}):',
+                    'İndirim (%${TextFormatter.formatPercent(invoice.discountRate)}):',
                   ),
                   Text('-₺${discountAmount.toStringAsFixed(2)}'),
                 ],

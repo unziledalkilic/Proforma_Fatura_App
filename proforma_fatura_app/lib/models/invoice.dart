@@ -1,19 +1,8 @@
 import 'customer.dart';
 import 'invoice_item.dart';
 
-enum InvoiceStatus {
-  draft('draft'), // Taslak
-  sent('sent'), // Gönderildi
-  accepted('accepted'), // Kabul edildi
-  rejected('rejected'), // Reddedildi
-  expired('expired'); // Süresi doldu
-
-  const InvoiceStatus(this.name);
-  final String name;
-}
-
 class Invoice {
-  final int? id;
+  final String? id;
   final String invoiceNumber;
   final Customer customer;
   final DateTime invoiceDate;
@@ -22,7 +11,6 @@ class Invoice {
   final String? notes;
   final String? terms;
   final double? discountRate; // Genel indirim oranı (%)
-  final InvoiceStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -36,7 +24,6 @@ class Invoice {
     this.notes,
     this.terms,
     this.discountRate,
-    required this.status,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -69,16 +56,15 @@ class Invoice {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'invoiceNumber': invoiceNumber,
-      'customerId': customer.id,
-      'invoiceDate': invoiceDate.toIso8601String(),
-      'dueDate': dueDate.toIso8601String(),
+      'invoice_number': invoiceNumber, // SQLite için snake_case
+      'customer_id': customer.id, // SQLite için snake_case
+      'invoice_date': invoiceDate.toIso8601String(), // SQLite için snake_case
+      'due_date': dueDate.toIso8601String(), // SQLite için snake_case
       'notes': notes,
       'terms': terms,
-      'discountRate': discountRate,
-      'status': status.name,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
+      'discount_rate': discountRate, // SQLite için snake_case
+      'created_at': createdAt.toIso8601String(), // SQLite için snake_case
+      'updated_at': updatedAt.toIso8601String(), // SQLite için snake_case
     };
   }
 
@@ -88,21 +74,31 @@ class Invoice {
     List<InvoiceItem> items,
   ) {
     return Invoice(
-      id: map['id'],
-      invoiceNumber: map['invoiceNumber'],
+      id: map['id']?.toString(),
+      invoiceNumber: map['invoice_number'] ?? map['invoiceNumber'] ?? '',
       customer: customer,
-      invoiceDate: DateTime.parse(map['invoiceDate']),
-      dueDate: DateTime.parse(map['dueDate']),
+      invoiceDate: DateTime.parse(
+        map['invoice_date'] ??
+            map['invoiceDate'] ??
+            DateTime.now().toIso8601String(),
+      ),
+      dueDate: DateTime.parse(
+        map['due_date'] ?? map['dueDate'] ?? DateTime.now().toIso8601String(),
+      ),
       items: items,
       notes: map['notes'],
       terms: map['terms'],
-      discountRate: map['discountRate']?.toDouble(),
-      status: InvoiceStatus.values.firstWhere(
-        (e) => e.name == map['status'],
-        orElse: () => InvoiceStatus.draft,
+      discountRate: (map['discount_rate'] ?? map['discountRate'])?.toDouble(),
+      createdAt: DateTime.parse(
+        map['created_at'] ??
+            map['createdAt'] ??
+            DateTime.now().toIso8601String(),
       ),
-      createdAt: DateTime.parse(map['createdAt']),
-      updatedAt: DateTime.parse(map['updatedAt']),
+      updatedAt: DateTime.parse(
+        map['updated_at'] ??
+            map['updatedAt'] ??
+            DateTime.now().toIso8601String(),
+      ),
     );
   }
 
@@ -116,12 +112,11 @@ class Invoice {
     String? notes,
     String? terms,
     double? discountRate,
-    InvoiceStatus? status,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return Invoice(
-      id: id ?? this.id,
+      id: id?.toString() ?? this.id,
       invoiceNumber: invoiceNumber ?? this.invoiceNumber,
       customer: customer ?? this.customer,
       invoiceDate: invoiceDate ?? this.invoiceDate,
@@ -130,7 +125,6 @@ class Invoice {
       notes: notes ?? this.notes,
       terms: terms ?? this.terms,
       discountRate: discountRate ?? this.discountRate,
-      status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

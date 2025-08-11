@@ -6,7 +6,7 @@ import 'package:open_file/open_file.dart';
 import '../constants/app_constants.dart';
 import '../models/invoice.dart';
 import '../services/pdf_service.dart';
-import '../providers/auth_provider.dart';
+import '../providers/hybrid_provider.dart';
 
 class PdfPreviewScreen extends StatefulWidget {
   final Invoice invoice;
@@ -36,16 +36,18 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
 
     try {
       final pdfService = PdfService();
-      
-      // Kullanıcı bilgilerini al
-      final authProvider = context.read<AuthProvider>();
-      final currentUser = authProvider.currentUser;
-      
+
+      // Kullanıcı ve seçili şirket bilgilerini al
+      final hybridProvider = context.read<HybridProvider>();
+      final currentUser = hybridProvider.appUser;
+      final sellerCompany = hybridProvider.selectedCompany;
+
       final filePath = await pdfService.generateInvoicePdf(
         widget.invoice,
         companyInfo: currentUser,
+        sellerCompany: sellerCompany,
       );
-      
+
       setState(() {
         _pdfPath = filePath;
         _isGenerating = false;
@@ -70,7 +72,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
 
       final fileName = 'Proforma_Fatura_${widget.invoice.invoiceNumber}.pdf';
       final targetPath = '${downloadsDir.path}/$fileName';
-      
+
       final sourceFile = File(_pdfPath!);
       final targetFile = await sourceFile.copy(targetPath);
 
@@ -173,10 +175,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text(
-              'PDF oluşturuluyor...',
-              style: TextStyle(fontSize: 16),
-            ),
+            Text('PDF oluşturuluyor...', style: TextStyle(fontSize: 16)),
           ],
         ),
       );
@@ -187,11 +186,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red,
-            ),
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
             Text(
               'PDF oluşturulurken hata oluştu',
@@ -219,9 +214,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
     }
 
     if (_pdfPath == null) {
-      return const Center(
-        child: Text('PDF yüklenemedi'),
-      );
+      return const Center(child: Text('PDF yüklenemedi'));
     }
 
     return Column(
@@ -240,7 +233,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
             ),
           ),
         ),
-        
+
         // Alt Butonlar
         Container(
           padding: const EdgeInsets.all(16),
@@ -312,10 +305,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
           const SizedBox(height: 8),
           Text(
             widget.invoice.invoiceNumber,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.grey,
-            ),
+            style: const TextStyle(fontSize: 16, color: Colors.grey),
           ),
           const SizedBox(height: 16),
           Container(
@@ -336,13 +326,10 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
           const Text(
             'PDF dosyası başarıyla oluşturuldu.\nİndirmek için aşağıdaki butonu kullanın.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
         ],
       ),
     );
   }
-} 
+}

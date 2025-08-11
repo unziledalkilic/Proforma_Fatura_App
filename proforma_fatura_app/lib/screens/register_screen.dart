@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_constants.dart';
-import '../providers/auth_provider.dart';
+import '../providers/hybrid_provider.dart';
 import '../utils/text_formatter.dart';
-import 'home_screen.dart';
+// import 'home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -33,26 +33,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.register(
-      username: TextFormatter.formatEmail(
-        _emailController.text,
-      ), // Email'i username olarak kullan
-      email: TextFormatter.formatEmail(_emailController.text),
-      password: _passwordController.text,
-      fullName: TextFormatter.capitalizeWords(_fullNameController.text),
-      phone: TextFormatter.formatPhone(_phoneController.text),
+    final firebaseProvider = context.read<HybridProvider>();
+    final success = await firebaseProvider.registerUser(
+      _emailController.text.trim(),
+      _passwordController.text,
+      _fullNameController.text.trim(),
+      _phoneController.text.trim(),
     );
 
     if (success && mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-        (route) => false,
-      );
+      // Navigate to home screen after successful registration
+      Navigator.of(context).pushReplacementNamed('/home');
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.error ?? 'Kayıt başarısız'),
+          content: Text(firebaseProvider.error ?? 'Kayıt başarısız'),
           backgroundColor: Colors.red,
         ),
       );
@@ -123,6 +118,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: 'Adınız ve soyadınız',
                     prefixIcon: Icon(Icons.person_outlined),
                   ),
+                  textCapitalization: TextCapitalization.words,
+                  inputFormatters: [CapitalizeWordsFormatter()],
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Ad soyad gerekli';
@@ -141,6 +138,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: 'ornek@gmail.com',
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
+                  inputFormatters: [LowerCaseFormatter()],
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'E-posta gerekli';
@@ -208,10 +206,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 32),
 
                 // Kayıt butonu
-                Consumer<AuthProvider>(
-                  builder: (context, authProvider, child) {
+                Consumer<HybridProvider>(
+                  builder: (context, firebaseProvider, child) {
                     return ElevatedButton(
-                      onPressed: authProvider.isLoading ? null : _register,
+                      onPressed: firebaseProvider.isLoading ? null : _register,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppConstants.primaryColor,
                         foregroundColor: Colors.white,
@@ -224,7 +222,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                       ),
-                      child: authProvider.isLoading
+                      child: firebaseProvider.isLoading
                           ? const SizedBox(
                               height: 20,
                               width: 20,
