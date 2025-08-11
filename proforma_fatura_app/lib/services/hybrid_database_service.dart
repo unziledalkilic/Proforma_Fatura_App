@@ -47,6 +47,10 @@ class HybridDatabaseService {
     await _firebaseService.initialize();
     _startConnectivityListener();
     _startPeriodicSync();
+    await database;
+    await _ensureInvoiceDetailTables();
+
+    // Ensure deleted_records table exists
   }
 
   Future<Database> _initDatabase() async {
@@ -170,6 +174,57 @@ class HybridDatabaseService {
         FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
       )
     ''');
+    Future<int> insertInvoice(Invoice invoice) async {
+      final db = await database;
+      final now = DateTime.now().toIso8601String();
+      final currentUserId = await _getCurrentSQLiteUserId();
+
+      final invoiceMap = invoice.toMap();
+      invoiceMap['created_at'] = now;
+      invoiceMap['updated_at'] = now;
+      invoiceMap['firebase_synced'] = 0;
+      invoiceMap['user_id'] = currentUserId;
+
+      final invoiceId = await db.insert('invoices', invoiceMap);
+
+      // Kalemler
+      for (var item in invoice.items) {
+        final itemMap = item.toMap();
+        itemMap['invoice_id'] = invoiceId;
+        itemMap['created_at'] = now;
+        itemMap['updated_at'] = now;
+        itemMap['firebase_synced'] = 0;
+        await db.insert('invoice_items', itemMap);
+      }
+
+      // Detay tabloların varlığını bir daha garanti et (idempotent)
+      await _ensureInvoiceDetailTables();
+
+      // UI'dan gelen seçimleri yakala (farklı alan adlarını tolere ediyoruz)
+      try {
+        final dynamic dyn = invoice;
+        final List<dynamic>? selections =
+            (dyn as dynamic).termSelections as List<dynamic>? ??
+            (dyn as dynamic).details as List<dynamic>? ??
+            (dyn as dynamic).extraTerms as List<dynamic>?;
+
+        if (selections != null && selections.isNotEmpty) {
+          await _insertInvoiceTermSelections(db, invoiceId, selections);
+        }
+      } catch (e) {
+        debugPrint(
+          '⚠️ Fatura detay seçimleri eklenemedi (fatura yine de kaydedildi): $e',
+        );
+      }
+
+      await _addToSyncLog('invoices', invoiceId, 'INSERT');
+
+      if (_isOnline) {
+        _syncInvoiceToFirebase(invoiceId);
+      }
+
+      return invoiceId;
+    }
 
     // Şirket bilgileri tablosu
     await db.execute('''
@@ -308,7 +363,7 @@ class HybridDatabaseService {
     if (oldVersion < 4) {
       // Model mapping düzeltmesi için tabloları yeniden oluştur
       debugPrint(
-        '🗑️ Eski tabloları temizleniyor (userId -> user_id mapping fix)',
+        '🗑 Eski tabloları temizleniyor (userId -> user_id mapping fix)',
       );
 
       // Tüm tabloları sil ve yeniden oluştur
@@ -328,7 +383,7 @@ class HybridDatabaseService {
 
     if (oldVersion < 5) {
       // Field mapping düzeltmesi için tabloları yeniden oluştur
-      debugPrint('🗑️ Field mapping düzeltmesi (camelCase -> snake_case)');
+      debugPrint('🗑 Field mapping düzeltmesi (camelCase -> snake_case)');
 
       // Tüm tabloları sil ve yeniden oluştur
       await db.execute('DROP TABLE IF EXISTS sync_log');
@@ -347,7 +402,7 @@ class HybridDatabaseService {
 
     if (oldVersion < 6) {
       // Tax office alanları kaldırıldı
-      debugPrint('🗑️ Tax office alanları kaldırılıyor');
+      debugPrint('🗑 Tax office alanları kaldırılıyor');
 
       // Tüm tabloları sil ve yeniden oluştur
       await db.execute('DROP TABLE IF EXISTS sync_log');
@@ -366,7 +421,7 @@ class HybridDatabaseService {
 
     if (oldVersion < 7) {
       // Tüm model SQLite uyumsuzlukları düzeltildi
-      debugPrint('🗑️ SQLite uyumsuzlukları düzeltiliyor');
+      debugPrint('🗑 SQLite uyumsuzlukları düzeltiliyor');
 
       // Tüm tabloları sil ve yeniden oluştur
       await db.execute('DROP TABLE IF EXISTS sync_log');
@@ -385,7 +440,7 @@ class HybridDatabaseService {
 
     if (oldVersion < 8) {
       // user_id NULL sorunu düzeltildi
-      debugPrint('🗑️ user_id NULL sorunu düzeltiliyor');
+      debugPrint('🗑 user_id NULL sorunu düzeltiliyor');
 
       // Tüm tabloları sil ve yeniden oluştur
       await db.execute('DROP TABLE IF EXISTS sync_log');
@@ -404,7 +459,7 @@ class HybridDatabaseService {
 
     if (oldVersion < 9) {
       // Kapsamlı ID dönüşüm düzeltmeleri
-      debugPrint('🗑️ Kapsamlı ID dönüşüm düzeltmeleri uygulanıyor');
+      debugPrint('🗑 Kapsamlı ID dönüşüm düzeltmeleri uygulanıyor');
 
       // Tüm tabloları sil ve yeniden oluştur
       await db.execute('DROP TABLE IF EXISTS sync_log');
@@ -775,7 +830,7 @@ class HybridDatabaseService {
       // Unique hata: aynı kullanıcı + şirket + ad kombinasyonu
       if (e.isUniqueConstraintError()) {
         // Hedef kaydı bulup merge mantığına geçebiliriz; şimdilik kullanıcıya hata dön
-        debugPrint('⚠️ UNIQUE violation on products: ${e.toString()}');
+        debugPrint('⚠ UNIQUE violation on products: ${e.toString()}');
         rethrow;
       } else {
         rethrow;
@@ -894,12 +949,12 @@ class HybridDatabaseService {
     }
 
     final List<Map<String, dynamic>> invoiceMaps = await db.rawQuery('''
-      SELECT i.*, c.name as customer_name, c.email as customer_email
-      FROM invoices i
-      LEFT JOIN customers c ON i.customer_id = c.id
-      $whereClause
-      ORDER BY i.created_at DESC
-    ''', whereArgs);
+    SELECT i.*, c.name as customer_name, c.email as customer_email
+    FROM invoices i
+    LEFT JOIN customers c ON i.customer_id = c.id
+    $whereClause
+    ORDER BY i.created_at DESC
+  ''', whereArgs);
 
     List<Invoice> invoices = [];
     for (var invoiceMap in invoiceMaps) {
@@ -912,6 +967,15 @@ class HybridDatabaseService {
         final items = await getInvoiceItemsByInvoiceId(
           int.parse(convertedMap['id']),
         );
+
+        // ✅ Terms bilgisi ekleniyor
+        final termsTexts = await getInvoiceTermsTextByInvoiceId(
+          int.parse(convertedMap['id']),
+        );
+        if (termsTexts.isNotEmpty) {
+          convertedMap['terms'] = termsTexts.join('\n');
+        }
+
         invoices.add(Invoice.fromMap(convertedMap, customer, items));
       }
     }
@@ -940,6 +1004,31 @@ class HybridDatabaseService {
     }
 
     return items;
+  }
+
+  Future<List<String>> getInvoiceTermsTextByInvoiceId(int invoiceId) async {
+    final db = await database;
+    final rows = await db.query(
+      'invoice_term_selections',
+      columns: ['text'],
+      where: 'invoice_id = ?',
+      whereArgs: [invoiceId],
+      orderBy: 'id ASC',
+    );
+
+    return rows
+        .map((e) {
+          final txt = (e['text'] as String?)?.trim() ?? '';
+          if (txt.isEmpty) return '';
+
+          // KDV veya Vade farkı gibi yüzdelik alanlarda otomatik % ekle
+          if (RegExp(r'^\d+(\.\d+)?$').hasMatch(txt)) {
+            return '%$txt';
+          }
+          return txt;
+        })
+        .where((t) => t.isNotEmpty)
+        .toList();
   }
 
   // ==================== SYNC OPERATIONS ====================
@@ -1072,6 +1161,43 @@ class HybridDatabaseService {
           whereArgs: [customerId],
         );
       }
+    }
+  }
+
+  Future<void> _insertInvoiceTermSelections(
+    Database db,
+    int invoiceId,
+    List<dynamic> selections,
+  ) async {
+    if (selections.isEmpty) return;
+
+    for (final s in selections) {
+      int? termId;
+      double? value;
+      String? text;
+
+      if (s is Map) {
+        termId = (s['termId'] ?? s['term_id']) as int?;
+        value = (s['value'] as num?)?.toDouble();
+        text = (s['text'] ?? s['body'] ?? s['rendered'])?.toString();
+      } else {
+        try {
+          termId = (s as dynamic).termId as int?;
+          value = ((s as dynamic).value as num?)?.toDouble();
+          text = (s as dynamic).text?.toString();
+        } catch (_) {}
+      }
+
+      if (termId == null) continue;
+
+      final safeText = (text == null || text.trim().isEmpty) ? '' : text.trim();
+
+      await db.insert('invoice_term_selections', {
+        'invoice_id': invoiceId,
+        'term_id': termId,
+        'value': value,
+        'text': safeText, // NOT NULL kolonu
+      });
     }
   }
 
@@ -1388,9 +1514,7 @@ class HybridDatabaseService {
             await db.insert('products', productMap);
             debugPrint('✅ Ürün SQLite\'a eklendi: ${product.name}');
           } catch (e) {
-            debugPrint(
-              '⚠️ Ürün insert unique hatası, güncelleme deneniyor: $e',
-            );
+            debugPrint('⚠ Ürün insert unique hatası, güncelleme deneniyor: $e');
             // Unique constraint tetiklendiyse, en yakın eşleşmeyi güncellemeyi dene
             await db.update(
               'products',
@@ -1703,7 +1827,7 @@ class HybridDatabaseService {
     );
   }
 
-  /// Update invoice
+  /// Update invoice (items + term selections)
   Future<int> updateInvoice(Invoice invoice) async {
     final db = await database;
     final now = DateTime.now().toIso8601String();
@@ -1711,15 +1835,13 @@ class HybridDatabaseService {
     final invoiceMap = invoice.toMap();
     invoiceMap['updated_at'] = now;
     invoiceMap['firebase_synced'] = 0;
-
-    // SQLite id alanına Firebase ID'yi koyma - sadece firebase_id alanına koy
     invoiceMap.remove('id'); // id alanını kaldır
 
     int result;
-    // Firebase ID varsa onu kullan, yoksa SQLite ID'yi kullan
+
     if (invoice.id != null &&
         !IdConverter.isValidSQLiteId(IdConverter.stringToInt(invoice.id))) {
-      // Firebase ID kullanarak güncelle
+      // Firebase ID ile güncelle
       result = await db.update(
         'invoices',
         invoiceMap,
@@ -1727,48 +1849,99 @@ class HybridDatabaseService {
         whereArgs: [invoice.id],
       );
     } else {
-      // SQLite ID kullanarak güncelle
-      final invoiceId = IdConverter.stringToInt(invoice.id);
-      if (invoiceId != null) {
-        result = await db.update(
-          'invoices',
-          invoiceMap,
-          where: 'id = ?',
-          whereArgs: [invoiceId],
-        );
-      } else {
+      // SQLite ID ile güncelle
+      final invoiceIdInt = IdConverter.stringToInt(invoice.id);
+      if (invoiceIdInt == null) {
         debugPrint('❌ Geçersiz invoice ID: ${invoice.id}');
         return 0;
       }
-    }
 
-    // Add to sync queue - güvenli ID dönüşümü
-    final invoiceId = IdConverter.stringToInt(invoice.id);
-    if (invoiceId != null) {
-      await _addToSyncLog('invoices', invoiceId, 'UPDATE');
+      result = await db.update(
+        'invoices',
+        invoiceMap,
+        where: 'id = ?',
+        whereArgs: [invoiceIdInt],
+      );
 
-      // Try to sync immediately if online
-      if (_isOnline) {
-        _syncInvoiceToFirebase(invoiceId);
+      // === Term selections güncelleme ===
+      try {
+        await _ensureInvoiceDetailTables();
+
+        final dynamic dyn = invoice;
+        final List<dynamic>? selections =
+            (dyn as dynamic).termSelections as List<dynamic>? ??
+            (dyn as dynamic).details as List<dynamic>? ??
+            (dyn as dynamic).extraTerms as List<dynamic>?;
+
+        if (selections != null) {
+          for (final s in selections) {
+            int? termId;
+            double? value;
+            String? text;
+
+            if (s is Map) {
+              termId = (s['termId'] ?? s['term_id']) as int?;
+              value = (s['value'] as num?)?.toDouble();
+              text = (s['text'] ?? s['body'] ?? s['rendered'])?.toString();
+            } else {
+              try {
+                termId = (s as dynamic).termId as int?;
+                value = ((s as dynamic).value as num?)?.toDouble();
+                text = (s as dynamic).text?.toString();
+              } catch (_) {}
+            }
+
+            if (termId == null) continue;
+
+            final safeText = (text == null || text.trim().isEmpty)
+                ? ''
+                : text.trim();
+
+            await db.insert('invoice_term_selections', {
+              'invoice_id': invoiceIdInt,
+              'term_id': termId,
+              'value': value,
+              'text': safeText,
+            });
+            // value alanını da güncelle (saveInvoiceTermSelection sadece text yazıyorsa)
+            await db.update(
+              'invoice_term_selections',
+              {'value': value},
+              where: 'invoice_id = ? AND term_id = ?',
+              whereArgs: [invoiceIdInt, termId],
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ Fatura detay seçimleri güncellenemedi: $e');
       }
-    } else {
-      debugPrint('❌ Geçersiz invoice ID: ${invoice.id}');
+
+      // Sync log
+      await _addToSyncLog('invoices', invoiceIdInt, 'UPDATE');
+      if (_isOnline) {
+        _syncInvoiceToFirebase(invoiceIdInt);
+      }
     }
 
     return result;
   }
 
-  /// Delete invoice (local + Firebase). Offline ise tombstone'a kaydeder.
+  Future<Map<String, dynamic>> runMaintenance() async {
+    final db = await database;
+    return await DatabaseMaintenance.runFullMaintenance(db);
+  }
+
+  Future<Map<String, dynamic>> runValidation() async {
+    final db = await database;
+    return await DatabaseValidator.runFullValidation(db);
+  }
+
   Future<int> deleteInvoice(int id) async {
     final db = await database;
 
-    // Add to sync log before deletion
     await _addToSyncLog('invoices', id, 'DELETE');
-
-    // Delete invoice items first (local)
     await db.delete('invoice_items', where: 'invoice_id = ?', whereArgs: [id]);
 
-    // Read firebase_id before deleting invoice row
     String? firebaseId;
     final row = await db.query(
       'invoices',
@@ -1779,14 +1952,12 @@ class HybridDatabaseService {
     );
     if (row.isNotEmpty) firebaseId = row.first['firebase_id'] as String?;
 
-    // Delete invoice (local)
     final result = await db.delete(
       'invoices',
       where: 'id = ?',
       whereArgs: [id],
     );
 
-    // Remote delete or tombstone
     if (_isOnline && firebaseId != null && firebaseId.isNotEmpty) {
       await _firebaseService.deleteInvoice(firebaseId);
     } else if (firebaseId != null && firebaseId.isNotEmpty) {
@@ -1801,31 +1972,53 @@ class HybridDatabaseService {
     return result;
   }
 
-  /// Get connectivity stream
-  Stream<bool> get connectivityStream {
-    return Connectivity().onConnectivityChanged.map((result) {
-      final isConnected = result != ConnectivityResult.none;
-      _isOnline = isConnected;
-      return isConnected;
-    });
+  Future<void> _ensureInvoiceDetailTables() async {
+    final db = await database;
+
+    await db.execute('''
+    CREATE TABLE IF NOT EXISTS invoice_terms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      term_key TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      body_template TEXT NOT NULL,
+      requires_number INTEGER NOT NULL DEFAULT 0,
+      number_label TEXT,
+      unit TEXT,
+      default_value REAL,
+      is_active INTEGER NOT NULL DEFAULT 1
+    )
+  ''');
+
+    await db.execute('''
+    CREATE TABLE IF NOT EXISTS invoice_term_selections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoice_id INTEGER NOT NULL,
+      term_id INTEGER NOT NULL,
+      value REAL,
+      text TEXT NOT NULL,
+      FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+      FOREIGN KEY (term_id) REFERENCES invoice_terms(id) ON DELETE RESTRICT
+    )
+  ''');
+
+    await db.execute('''
+    CREATE INDEX IF NOT EXISTS idx_invoice_term_sel_invoice
+    ON invoice_term_selections(invoice_id)
+  ''');
+
+    await _seedDefaultInvoiceTerms(db);
   }
 
-  /// Run database maintenance
-  Future<Map<String, dynamic>> runMaintenance() async {
-    final db = await database;
-    return await DatabaseMaintenance.runFullMaintenance(db);
-  }
-
-  /// Run database validation
-  Future<Map<String, dynamic>> runValidation() async {
-    final db = await database;
-    return await DatabaseValidator.runFullValidation(db);
-  }
-
-  /// Close database
-  Future<void> close() async {
-    dispose();
-    final db = await database;
-    await db.close();
+  Future<void> _seedDefaultInvoiceTerms(Database db) async {
+    await db.rawInsert('''
+    INSERT OR IGNORE INTO invoice_terms
+    (term_key, title, body_template, requires_number, number_label, unit, default_value, is_active)
+    VALUES
+    ('TR_DELIVERY','Türkiye Teslimi','Yukarıdaki fiyatlar Türkiye teslim satış fiyatlarıdır.',0,NULL,NULL,NULL,1),
+    ('KDV_INCLUDED','KDV Dahildir','Teklif toplamına %{value} KDV dahildir.',1,'KDV (%)','%',20,1),
+    ('CARGO_BUYER','Kargo Ücreti','Kargo ücreti alıcıya aittir.',0,NULL,NULL,NULL,1),
+    ('LATE_FEE','Vade Farkı','Fatura tarihinden itibaren ödeme vadesini aşan ödemelere aylık %{value} vade farkı uygulanır.',1,'Vade Farkı (%)','%',8,1),
+    ('VALID_DAYS','Geçerlilik Süresi','Teklifin geçerlilik süresi {value} iş günüdür.',1,'Gün','gün',3,1)
+  ''');
   }
 }

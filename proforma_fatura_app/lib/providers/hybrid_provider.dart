@@ -1206,6 +1206,11 @@ class HybridProvider extends ChangeNotifier {
     }
   }
 
+  // === Invoice Terms helpers ===
+  Future<List<String>> getInvoiceTermsTextByInvoiceId(int invoiceId) {
+    return _hybridService.getInvoiceTermsTextByInvoiceId(invoiceId);
+  }
+
   /// Save company info (compatibility method)
   Future<bool> saveCompanyInfo(CompanyInfo companyInfo) async {
     try {

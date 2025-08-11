@@ -132,20 +132,11 @@ class PdfService {
                     pw.Radius.circular(4),
                   ),
                 ),
-                child: pw.Text(
-                  'ProForma Invoice',
-                  style: pw.TextStyle(
-                    fontSize: 12,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.black,
-                    font: fontBold,
-                  ),
-                ),
               ),
             pw.SizedBox(height: 15),
             // Ana başlık
             pw.Text(
-              'PROFORMA FATURA',
+              'TEKLİF FATURASI',
               style: pw.TextStyle(
                 fontSize: 28,
                 fontWeight: pw.FontWeight.bold,
@@ -175,7 +166,7 @@ class PdfService {
             ),
             pw.SizedBox(height: 8),
             _buildInvoiceDetailRow(
-              'Vade Tarihi',
+              'Geçerlilik Tarihi',
               DateFormat('dd.MM.yyyy').format(invoice.dueDate),
               font,
               fontBold,
@@ -618,7 +609,7 @@ class PdfService {
           pw.Text(
             'ÖDEME BİLGİLERİ',
             style: pw.TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: pw.FontWeight.bold,
               color: PdfColors.black,
               font: fontBold,
@@ -629,7 +620,7 @@ class PdfService {
             pw.Text(
               'Ödeme Koşulları: ${invoice.terms}',
               style: pw.TextStyle(
-                fontSize: 10,
+                fontSize: 12,
                 color: PdfColors.black,
                 font: font,
               ),
@@ -638,21 +629,15 @@ class PdfService {
           pw.Text(
             'Bu bir proforma faturadır ve vergi beyannamesi yerine geçmez.',
             style: pw.TextStyle(
-              fontSize: 10,
+              fontSize: 13,
               fontStyle: pw.FontStyle.italic,
               color: PdfColors.grey700,
               font: font,
             ),
           ),
           pw.SizedBox(height: 8),
-          pw.Text(
-            'Oluşturulma Tarihi: ${DateFormat('dd.MM.yyyy HH:mm').format(invoice.createdAt)}',
-            style: pw.TextStyle(
-              fontSize: 9,
-              color: PdfColors.grey600,
-              font: font,
-            ),
-          ),
+
+          // 'Oluşturulma Tarihi: ${DateFormat('dd.MM.yyyy HH:mm').format(invoice.createdAt)}',
         ],
       ),
     );

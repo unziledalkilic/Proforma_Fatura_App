@@ -703,6 +703,7 @@ class InvoiceDetailScreen extends StatelessWidget {
             const SizedBox(height: AppConstants.paddingMedium),
 
             // Notlar ve Şartlar
+            // Notlar ve Şartlar
             if (invoice.notes != null || invoice.terms != null) ...[
               Card(
                 child: Padding(
@@ -724,14 +725,42 @@ class InvoiceDetailScreen extends StatelessWidget {
                       ],
                       if (invoice.terms != null) ...[
                         const Text(
-                          'Ödeme Şartları',
+                          'Ödeme / Şartlar',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(invoice.terms!),
+
+                        // ✅ satır satır (madde madde) göster
+                        ...((invoice.terms ?? '')
+                            .split('\n')
+                            .map((e) => e.trim())
+                            .where((e) => e.isNotEmpty)
+                            .map(
+                              (line) => Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      '•  ',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        height: 1.25,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        line,
+                                        style: const TextStyle(fontSize: 15.5),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )),
                       ],
                     ],
                   ),

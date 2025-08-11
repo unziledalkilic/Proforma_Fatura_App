@@ -9,6 +9,10 @@ import '../providers/hybrid_provider.dart';
 import '../utils/text_formatter.dart';
 import 'pdf_preview_screen.dart';
 import '../widgets/company_logo_avatar.dart';
+import '../widgets/invoice_terms_list.dart';
+
+// ✅ Eklendi: DB erişimi için
+import '../services/hybrid_database_service.dart';
 
 class InvoiceFormScreen extends StatefulWidget {
   final Invoice? invoice; // Düzenleme modu için
@@ -45,6 +49,11 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   // Satıcı şirket seçimi
   String? _selectedCompanyId; // firebaseId veya null
 
+  // ✅ Eklendi: Fatura Detayları (invoice_terms) UI state
+  List<Map<String, dynamic>> _terms = []; // invoice_terms satırları
+  final Map<int, double?> _termValues = {}; // term_id -> sayı (gerekiyorsa)
+  final Set<int> _selectedTermIds = <int>{}; // seçili term_id'ler
+
   @override
   void initState() {
     super.initState();
@@ -70,9 +79,74 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       _loadCustomers();
       _loadProducts();
       context.read<HybridProvider>().loadCompanyProfiles();
+      // ✅ Eklendi: Fatura Detayları (şablon) yükle
+      _loadTerms();
+      // (Opsiyonel) düzenleme modunda varsa seçili maddeleri yükleme ileride eklenebilir
     });
 
     debugPrint('✅ InvoiceFormScreen initState tamamlandı');
+  }
+
+  // ✅ Eklendi: invoice_terms'ü DB'den çek
+  Future<void> _loadTerms() async {
+    try {
+      final db = await HybridDatabaseService().database;
+      final rows = await db.query(
+        'invoice_terms',
+        where: 'is_active = 1',
+        orderBy: 'title',
+      );
+      setState(() {
+        _terms = rows;
+        // Varsayılan değerleri hazırla
+        for (final r in rows) {
+          final id = r['id'] as int;
+          final def = r['default_value'] as num?;
+          _termValues[id] = def?.toDouble();
+        }
+      });
+    } catch (e) {
+      debugPrint('❌ invoice_terms yüklenemedi: $e');
+    }
+  }
+
+  // ✅ Eklendi: şablon metninden nihai metni üret
+  String _buildFinalText(Map<String, dynamic> term, double? value) {
+    String s = (term['body_template'] as String?) ?? '';
+    final requires = (term['requires_number'] ?? 0) == 1;
+    if (requires) {
+      final v = value ?? (term['default_value'] as num?)?.toDouble() ?? 0;
+      final formatted = (v % 1 == 0) ? v.toStringAsFixed(0) : v.toString();
+      s = s.replaceAll('%{value}', formatted).replaceAll('{value}', formatted);
+    }
+    return s;
+  }
+
+  // ✅ Eklendi: seçilen maddeleri invoice_term_selections tablosuna yaz
+  Future<void> _saveInvoiceTermsToDb(int invoiceId) async {
+    final db = await HybridDatabaseService().database;
+    await db.transaction((txn) async {
+      // Eski seçimleri sil
+      await txn.delete(
+        'invoice_term_selections',
+        where: 'invoice_id = ?',
+        whereArgs: [invoiceId],
+      );
+
+      // Seçilileri ekle
+      for (final t in _terms) {
+        final id = t['id'] as int;
+        if (!_selectedTermIds.contains(id)) continue;
+        final val = _termValues[id];
+        final text = _buildFinalText(t, val);
+        await txn.insert('invoice_term_selections', {
+          'invoice_id': invoiceId,
+          'term_id': id,
+          'value': val,
+          'text': text,
+        });
+      }
+    });
   }
 
   Future<void> _loadCustomers() async {
@@ -303,7 +377,6 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           phone: _customerPhoneController.text.trim(),
           address: _customerAddressController.text.trim(),
           taxNumber: _customerTaxNumberController.text.trim(),
-
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
@@ -361,7 +434,6 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           invoiceDate: DateTime.now(),
           dueDate: DateTime.now().add(const Duration(days: 30)), // 30 gün vade
           items: _invoiceItems,
-
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
@@ -377,6 +449,38 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       debugPrint('👤 Müşteri: ${customer.name}');
       debugPrint('📦 Ürün Sayısı: ${_invoiceItems.length}');
       debugPrint('💰 Toplam Tutar: ₺${_calculateTotal().toStringAsFixed(2)}');
+
+      // ✅ Eklendi: Seçilen "Fatura Detayları" maddelerini kaydet
+      try {
+        int? invoiceId;
+        // Düzenleme modunda ID parse edilebilir
+        if (widget.invoice?.id != null) {
+          invoiceId = int.tryParse(widget.invoice!.id!);
+        }
+        // Yeni oluşturulduysa ya da parse edilemediyse, fatura numarasıyla bul
+        if (invoiceId == null) {
+          final db = await HybridDatabaseService().database;
+          final rows = await db.query(
+            'invoices',
+            columns: ['id'],
+            where: 'invoice_number = ?',
+            whereArgs: [_invoiceNumberController.text.trim()],
+            limit: 1,
+          );
+          if (rows.isNotEmpty) {
+            invoiceId = rows.first['id'] as int;
+          }
+        }
+        if (invoiceId != null) {
+          await _saveInvoiceTermsToDb(invoiceId);
+        } else {
+          debugPrint(
+            '⚠ invoice_id bulunamadı; Fatura Detayları kaydedilemedi.',
+          );
+        }
+      } catch (e) {
+        debugPrint('⚠ Fatura Detayları kaydı hatası: $e');
+      }
 
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -478,7 +582,6 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Kayıtlı Müşteri Seçimi
                       // Satıcı Şirket Seçimi
                       Card(
                         child: Padding(
@@ -559,6 +662,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
+
+                      // Kayıtlı Müşteri Seçimi
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(16.0),
@@ -732,6 +837,119 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                           prefixIcon: Icon(Icons.receipt_long),
                         ),
                         keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ✅ Eklendi: Fatura Detayları (maddeler)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Fatura Detayları',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Çoklu seçim chip’leri
+                              if (_terms.isEmpty)
+                                const Text(
+                                  'Seçenek bulunamadı.',
+                                  style: TextStyle(color: Colors.grey),
+                                )
+                              else
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _terms.map((t) {
+                                    final id = t['id'] as int;
+                                    final selected = _selectedTermIds.contains(
+                                      id,
+                                    );
+                                    return FilterChip(
+                                      label: Text(t['title'] as String),
+                                      selected: selected,
+                                      onSelected: (on) {
+                                        setState(() {
+                                          if (on) {
+                                            _selectedTermIds.add(id);
+                                          } else {
+                                            _selectedTermIds.remove(id);
+                                          }
+                                        });
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+
+                              const SizedBox(height: 12),
+
+                              // Sayısal değer isteyen seçili maddeler için inputlar
+                              Column(
+                                children: _terms
+                                    .where(
+                                      (t) =>
+                                          (t['requires_number'] ?? 0) == 1 &&
+                                          _selectedTermIds.contains(
+                                            t['id'] as int,
+                                          ),
+                                    )
+                                    .map((t) {
+                                      final id = t['id'] as int;
+                                      final label =
+                                          (t['number_label'] as String?) ??
+                                          'Değer';
+                                      final unit = (t['unit'] as String?) ?? '';
+                                      final initial =
+                                          _termValues[id]?.toString() ?? '';
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8.0,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                '$label ${unit.isNotEmpty ? '($unit)' : ''}',
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            SizedBox(
+                                              width: 140,
+                                              child: TextFormField(
+                                                initialValue: initial,
+                                                decoration:
+                                                    const InputDecoration(
+                                                      isDense: true,
+                                                      border:
+                                                          OutlineInputBorder(),
+                                                    ),
+                                                keyboardType:
+                                                    TextInputType.number,
+                                                inputFormatters: [
+                                                  FilteringTextInputFormatter.allow(
+                                                    RegExp(r'[0-9.]'),
+                                                  ),
+                                                ],
+                                                onChanged: (v) =>
+                                                    _termValues[id] =
+                                                        double.tryParse(v),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    })
+                                    .toList(),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 32),
 

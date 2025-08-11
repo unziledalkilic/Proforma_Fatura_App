@@ -3,6 +3,8 @@ import '../constants/app_constants.dart';
 import '../utils/text_formatter.dart';
 import '../models/invoice.dart';
 import '../models/company_info.dart';
+import 'package:provider/provider.dart'; // yoksa ekle
+import '../widgets/invoice_terms_list.dart';
 
 class InvoicePreviewScreen extends StatelessWidget {
   final Invoice invoice;
@@ -285,32 +287,64 @@ class InvoicePreviewScreen extends StatelessWidget {
   }
 
   Widget _buildNotesSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (invoice.notes != null) ...[
-              const Text(
-                'Notlar',
-                style: TextStyle(fontWeight: FontWeight.bold),
+    final hasNotes = (invoice.notes ?? '').trim().isNotEmpty;
+    final hasPlainTerms = (invoice.terms ?? '').trim().isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (hasNotes || hasPlainTerms)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (hasNotes) ...[
+                    const Text(
+                      'Notlar',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18, // başlık bir tık büyük
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      invoice.notes!.trim(),
+                      style: const TextStyle(
+                        fontSize: 16,
+                      ), // metin bir tık büyük
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (hasPlainTerms) ...[
+                    const Text(
+                      'Ödeme Şartları',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20, // başlık bir tık büyük
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      invoice.terms!.trim(),
+                      style: const TextStyle(
+                        fontSize: 16,
+                      ), // metin bir tık büyük
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(invoice.notes!),
-              const SizedBox(height: 16),
-            ],
-            if (invoice.terms != null) ...[
-              const Text(
-                'Ödeme Şartları',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(invoice.terms!),
-            ],
-          ],
+            ),
+          ),
+
+        // Seçili ödeme ve şartlar (DB'den gelenler)
+        InvoiceTermsList(
+          invoiceId: int.tryParse(invoice.id ?? ''),
+          title: 'Seçili Ödeme ve Şartlar',
+          padding: const EdgeInsets.all(16),
         ),
-      ),
+      ],
     );
   }
 }
