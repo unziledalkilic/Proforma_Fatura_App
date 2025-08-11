@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/customer.dart';
@@ -9,6 +8,7 @@ import '../models/product.dart';
 import '../providers/hybrid_provider.dart';
 import '../utils/text_formatter.dart';
 import 'pdf_preview_screen.dart';
+import '../widgets/company_logo_avatar.dart';
 
 class InvoiceFormScreen extends StatefulWidget {
   final Invoice? invoice; // Düzenleme modu için
@@ -1121,38 +1121,14 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         children: [
           Row(
             children: [
-              if (selectedCompany.logo != null &&
-                  selectedCompany.logo!.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: (selectedCompany.logo!.startsWith('http')
-                      ? Image.network(
-                          selectedCompany.logo!,
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.cover,
-                        )
-                      : Image.file(
-                          File(selectedCompany.logo!),
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.cover,
-                        )),
-                )
-              else
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.blue[100],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Icon(
-                    Icons.business,
-                    size: 16,
-                    color: Colors.blue[700],
-                  ),
-                ),
+              CompanyLogoAvatar(
+                logoPathOrUrl: selectedCompany.logo,
+                size: 32,
+                circular: false,
+                backgroundColor: Colors.blue[100],
+                fallbackIcon: Icons.business,
+                fallbackIconColor: Colors.blue[700],
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

@@ -209,7 +209,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   ),
                                   borderRadius: BorderRadius.circular(25),
                                 ),
-                                child: Icon(
+                                child: const Icon(
                                   Icons.person,
                                   size: 30,
                                   color: AppConstants.primaryColor,

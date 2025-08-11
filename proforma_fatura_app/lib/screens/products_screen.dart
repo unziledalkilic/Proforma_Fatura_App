@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_constants.dart';
 import '../utils/text_formatter.dart';
+import '../widgets/company_logo_avatar.dart';
 
 import '../models/product.dart';
 import '../providers/hybrid_provider.dart';
@@ -225,20 +226,22 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           children: [
                             Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        hybridProvider.selectedCompany != null
-                                        ? AppConstants.primaryColor
-                                        : Colors.grey[400],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.business,
-                                    size: 20,
-                                    color: Colors.white,
-                                  ),
+                                CompanyLogoAvatar(
+                                  logoPathOrUrl:
+                                      hybridProvider.selectedCompany?.logo,
+                                  size: 32,
+                                  circular: true,
+                                  backgroundColor:
+                                      (hybridProvider.selectedCompany != null)
+                                      ? AppConstants.primaryColor.withOpacity(
+                                          0.2,
+                                        )
+                                      : Colors.grey[400],
+                                  fallbackIcon: Icons.business,
+                                  fallbackIconColor:
+                                      (hybridProvider.selectedCompany != null)
+                                      ? AppConstants.primaryColor
+                                      : Colors.white,
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(

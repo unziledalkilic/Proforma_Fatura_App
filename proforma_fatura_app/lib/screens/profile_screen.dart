@@ -6,6 +6,7 @@ import '../models/user.dart';
 import '../utils/text_formatter.dart';
 import 'login_screen.dart';
 import 'company_management_screen.dart';
+import '../widgets/company_logo_avatar.dart';
 
 // AddCompanyScreen import'u company_management_screen.dart içinde
 
@@ -453,9 +454,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               child: selectedCompany != null
                                                   ? Row(
                                                       children: [
-                                                        const Icon(
-                                                          Icons.business,
-                                                          color: Colors.green,
+                                                        CompanyLogoAvatar(
+                                                          logoPathOrUrl:
+                                                              selectedCompany
+                                                                  .logo,
+                                                          size: 24,
+                                                          circular: true,
+                                                          backgroundColor:
+                                                              Colors.green
+                                                                  .withOpacity(
+                                                                    0.15,
+                                                                  ),
+                                                          fallbackIcon:
+                                                              Icons.business,
+                                                          fallbackIconColor:
+                                                              Colors.green,
                                                         ),
                                                         const SizedBox(
                                                           width: 8,
@@ -503,16 +516,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                   ),
                                                 ),
                                                 child: ListTile(
-                                                  leading: CircleAvatar(
+                                                  leading: CompanyLogoAvatar(
+                                                    logoPathOrUrl:
+                                                        selectedCompany.logo,
+                                                    size: 32,
+                                                    circular: true,
                                                     backgroundColor:
                                                         AppConstants
+                                                            .primaryLight,
+                                                    fallbackIcon:
+                                                        Icons.business,
+                                                    fallbackIconColor:
+                                                        AppConstants
                                                             .primaryColor,
-                                                    child: Icon(
-                                                      Icons.business,
-                                                      color: AppConstants
-                                                          .textOnPrimary,
-                                                      size: 16,
-                                                    ),
                                                   ),
                                                   title: Text(
                                                     selectedCompany.name,

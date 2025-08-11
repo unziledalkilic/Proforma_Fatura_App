@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import '../widgets/company_logo_avatar.dart';
 import '../constants/app_constants.dart';
 import '../providers/hybrid_provider.dart';
 import '../models/company_info.dart';
@@ -135,26 +136,13 @@ class _CompanyManagementScreenState extends State<CompanyManagementScreen> {
                             ),
                             child: ListTile(
                               contentPadding: const EdgeInsets.all(16),
-                              leading: CircleAvatar(
-                                radius: 24,
-                                backgroundImage:
-                                    (company.logo != null &&
-                                        company.logo!.isNotEmpty)
-                                    ? (company.logo!.startsWith('http')
-                                          ? NetworkImage(company.logo!)
-                                          : FileImage(File(company.logo!))
-                                                as ImageProvider<Object>)
-                                    : null,
+                              leading: CompanyLogoAvatar(
+                                logoPathOrUrl: company.logo,
+                                size: 48,
+                                circular: true,
                                 backgroundColor: AppConstants.primaryLight,
-                                child:
-                                    (company.logo == null ||
-                                        company.logo!.isEmpty)
-                                    ? Icon(
-                                        Icons.business,
-                                        color: AppConstants.primaryColor,
-                                        size: 20,
-                                      )
-                                    : null,
+                                fallbackIcon: Icons.business,
+                                fallbackIconColor: AppConstants.primaryColor,
                               ),
                               title: Text(
                                 company.name,

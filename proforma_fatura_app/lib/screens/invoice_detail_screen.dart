@@ -4,6 +4,7 @@ import '../constants/app_constants.dart';
 import '../utils/text_formatter.dart';
 import '../models/invoice.dart';
 import '../providers/hybrid_provider.dart';
+import '../widgets/company_logo_avatar.dart';
 import 'pdf_preview_screen.dart';
 
 class InvoiceDetailScreen extends StatelessWidget {
@@ -310,13 +311,31 @@ class InvoiceDetailScreen extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              Text(
-                                company?.name ?? (user?.fullName ?? '—'),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppConstants.primaryColor,
-                                ),
+                              Row(
+                                children: [
+                                  CompanyLogoAvatar(
+                                    logoPathOrUrl: company?.logo,
+                                    size: 28,
+                                    circular: true,
+                                    backgroundColor: AppConstants.primaryLight
+                                        .withOpacity(0.3),
+                                    fallbackIcon: Icons.business,
+                                    fallbackIconColor:
+                                        AppConstants.primaryColor,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      company?.name ?? (user?.fullName ?? '—'),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppConstants.primaryColor,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
                               if ((company?.email ?? user?.email) != null) ...[
                                 const SizedBox(height: 4),
