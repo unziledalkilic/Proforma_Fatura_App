@@ -339,28 +339,42 @@ class FirebaseService {
 
   // Product Methods
   Future<String?> addProduct(Product product) async {
+    debugPrint('🔄 FirebaseService.addProduct called for: ${product.name}');
     try {
       final userId = _auth.currentUser?.uid;
-      if (userId == null) return null;
+      debugPrint('👤 Current user ID: $userId');
+      if (userId == null) {
+        debugPrint('❌ No user ID found');
+        return null;
+      }
+
+      debugPrint(
+        '📝 Adding product to Firebase collection: users/$userId/products',
+      );
+
+      final productData = {
+        'name': product.name,
+        'description': product.description,
+        'price': product.price,
+        'category': product.category,
+        'unit': product.unit,
+        'companyId': product.companyId,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      debugPrint('📦 Product data: $productData');
 
       final docRef = await _firestore
           .collection('users')
           .doc(userId)
           .collection('products')
-          .add({
-            'name': product.name,
-            'description': product.description,
-            'price': product.price,
-            'category': product.category,
-            'unit': product.unit,
-            'companyId': product.companyId,
-            'createdAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+          .add(productData);
 
+      debugPrint('✅ Product added to Firebase with document ID: ${docRef.id}');
       return docRef.id;
     } catch (e) {
-      debugPrint('Firebase Product Error: $e');
+      debugPrint('❌ Firebase Product Error: $e');
       return null;
     }
   }
@@ -418,6 +432,46 @@ class FirebaseService {
       }).toList();
     } catch (e) {
       debugPrint('Firebase Product Error: $e');
+      return [];
+    }
+  }
+
+  /// Get products filtered by company ID
+  Future<List<Product>> getProductsByCompany(String companyId) async {
+    try {
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) return [];
+
+      debugPrint('🔄 Getting products for company: $companyId');
+
+      final querySnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('products')
+          .where('companyId', isEqualTo: companyId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      final products = querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        return Product(
+          id: doc.id,
+          userId: userId,
+          name: data['name'] ?? '',
+          description: data['description'] ?? '',
+          price: (data['price'] ?? 0.0).toDouble(),
+          unit: data['unit'] ?? '',
+          category: data['category'] as String?,
+          companyId: data['companyId']?.toString(),
+          createdAt: (data['createdAt'] as Timestamp).toDate(),
+          updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+        );
+      }).toList();
+
+      debugPrint('✅ Found ${products.length} products for company: $companyId');
+      return products;
+    } catch (e) {
+      debugPrint('❌ Firebase Product Error (by company): $e');
       return [];
     }
   }
@@ -500,9 +554,9 @@ class FirebaseService {
             .doc(docRef.id)
             .collection('items')
             .add({
-              'product_id': item.product.id, // SQLite uyumlu snake_case
-              'productName': item.product.name,
-              'description': item.product.description,
+              'product_id': item.product?.id ?? '', // SQLite uyumlu snake_case
+              'productName': item.product?.name ?? '',
+              'description': item.product?.description ?? '',
               'quantity': item.quantity,
               'unitPrice': item.unitPrice,
               'discountRate': item.discountRate,
@@ -549,142 +603,111 @@ class FirebaseService {
           .orderBy('createdAt', descending: true)
           .get();
 
-      List<Invoice> invoices = [];
-
-      for (var doc in querySnapshot.docs) {
+      return querySnapshot.docs.map((doc) {
         final data = doc.data();
-
-        // Get customer
-        final customerDoc = await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('customers')
-            .doc(
-              IdConverter.mixedToString(
-                data['customer_id'] ?? data['customerId'],
-              ),
-            )
-            .get();
-
-        Customer customer;
-        if (customerDoc.exists) {
-          final customerData = customerDoc.data()!;
-          customer = Customer(
-            id: customerDoc.id,
-            name: customerData['name'] ?? '',
-            email: customerData['email'],
-            phone: customerData['phone'],
-            address: customerData['address'],
-            taxNumber: customerData['taxNumber'],
-
-            createdAt: (customerData['createdAt'] as Timestamp).toDate(),
-            updatedAt: (customerData['updatedAt'] as Timestamp).toDate(),
-          );
-        } else {
-          // Fallback customer if not found
-          customer = Customer(
-            id: IdConverter.mixedToString(
-              data['customer_id'] ?? data['customerId'],
-            ),
-            name: data['customerName'] ?? 'Unknown Customer',
+        return Invoice(
+          id: doc.id,
+          userId: userId,
+          invoiceNumber: data['invoiceNumber'] ?? '',
+          customer: Customer(
+            id: data['customerId']?.toString() ?? '',
+            userId: userId,
+            name: data['customerName'] ?? '',
+            email: data['customerEmail'],
+            phone: data['customerPhone'],
+            address: data['customerAddress'],
+            taxNumber: data['customerTaxNumber'],
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
-          );
-        }
-
-        // Get invoice items
-        final itemsSnapshot = await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('invoices')
-            .doc(doc.id)
-            .collection('items')
-            .get();
-
-        List<InvoiceItem> items = [];
-        for (var itemDoc in itemsSnapshot.docs) {
-          final itemData = itemDoc.data();
-
-          // Get product
-          final productDoc = await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('products')
-              .doc(
-                IdConverter.mixedToString(
-                  itemData['product_id'] ?? itemData['productId'],
-                ),
-              )
-              .get();
-
-          Product product;
-          if (productDoc.exists) {
-            final productData = productDoc.data()!;
-            product = Product(
-              id: productDoc.id,
-              userId: userId,
-              name: productData['name'] ?? '',
-              description: productData['description'] ?? '',
-              price: (productData['price'] ?? 0.0).toDouble(),
-              unit: productData['unit'] ?? '',
-              category: null,
-              createdAt: (productData['createdAt'] as Timestamp).toDate(),
-              updatedAt: (productData['updatedAt'] as Timestamp).toDate(),
-            );
-          } else {
-            // Fallback product if not found
-            product = Product(
-              id: IdConverter.mixedToString(
-                itemData['product_id'] ?? itemData['productId'],
-              ),
-              userId: userId,
-              name: itemData['productName'] ?? 'Unknown Product',
-              description: itemData['description'] ?? '',
-              price: (itemData['unitPrice'] ?? 0.0).toDouble(),
-              unit: '',
-              category: null,
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
-            );
-          }
-
-          items.add(
-            InvoiceItem(
-              id: itemDoc.id,
-              product: product,
-              quantity: (itemData['quantity'] ?? 0).toDouble(),
-              unitPrice: (itemData['unitPrice'] ?? 0.0).toDouble(),
-              discountRate: itemData['discountRate']?.toDouble(),
-              taxRate: itemData['taxRate']?.toDouble(),
-              notes: itemData['notes'],
-            ),
-          );
-        }
-
-        invoices.add(
-          Invoice(
-            id: doc.id,
-            invoiceNumber: data['invoiceNumber'] ?? '',
-            customer: customer,
-            invoiceDate: DateTime.parse(
-              data['invoiceDate'] ?? DateTime.now().toIso8601String(),
-            ),
-            dueDate: DateTime.parse(
-              data['dueDate'] ?? DateTime.now().toIso8601String(),
-            ),
-            items: items,
-            notes: data['notes'],
-            terms: data['terms'],
-            discountRate: data['discountRate']?.toDouble(),
-            createdAt: (data['createdAt'] as Timestamp).toDate(),
-            updatedAt: (data['updatedAt'] as Timestamp).toDate(),
           ),
+          invoiceDate:
+              (data['invoiceDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          dueDate: (data['dueDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          items: (data['items'] as List<dynamic>? ?? []).map((item) {
+            return InvoiceItem(
+              id: item['id']?.toString() ?? '',
+              productName: item['productName'] ?? '',
+              description: item['description'],
+              quantity: (item['quantity'] ?? 0.0).toDouble(),
+              unitPrice: (item['unitPrice'] ?? 0.0).toDouble(),
+              discountRate: (item['discountRate'] ?? 0.0).toDouble(),
+              total: (item['total'] ?? 0.0).toDouble(),
+            );
+          }).toList(),
+          notes: data['notes'],
+          terms: data['terms'],
+          discountRate: (data['discountRate'] ?? 0.0).toDouble(),
+          companyId: data['companyId']?.toString(),
+          createdAt: (data['createdAt'] as Timestamp).toDate(),
+          updatedAt: (data['updatedAt'] as Timestamp).toDate(),
         );
-      }
-
-      return invoices;
+      }).toList();
     } catch (e) {
       debugPrint('Firebase Invoice Error: $e');
+      return [];
+    }
+  }
+
+  /// Get invoices filtered by company ID
+  Future<List<Invoice>> getInvoicesByCompany(String companyId) async {
+    try {
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) return [];
+
+      debugPrint('🔄 Getting invoices for company: $companyId');
+
+      final querySnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('invoices')
+          .where('companyId', isEqualTo: companyId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      final invoices = querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        return Invoice(
+          id: doc.id,
+          userId: userId,
+          invoiceNumber: data['invoiceNumber'] ?? '',
+          customer: Customer(
+            id: data['customerId']?.toString() ?? '',
+            userId: userId,
+            name: data['customerName'] ?? '',
+            email: data['customerEmail'],
+            phone: data['customerPhone'],
+            address: data['customerAddress'],
+            taxNumber: data['customerTaxNumber'],
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+          invoiceDate:
+              (data['invoiceDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          dueDate: (data['dueDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          items: (data['items'] as List<dynamic>? ?? []).map((item) {
+            return InvoiceItem(
+              id: item['id']?.toString() ?? '',
+              productName: item['productName'] ?? '',
+              description: item['description'],
+              quantity: (item['quantity'] ?? 0.0).toDouble(),
+              unitPrice: (item['unitPrice'] ?? 0.0).toDouble(),
+              discountRate: (item['discountRate'] ?? 0.0).toDouble(),
+              total: (item['total'] ?? 0.0).toDouble(),
+            );
+          }).toList(),
+          notes: data['notes'],
+          terms: data['terms'],
+          discountRate: (data['discountRate'] ?? 0.0).toDouble(),
+          companyId: data['companyId']?.toString(),
+          createdAt: (data['createdAt'] as Timestamp).toDate(),
+          updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+        );
+      }).toList();
+
+      debugPrint('✅ Found ${invoices.length} invoices for company: $companyId');
+      return invoices;
+    } catch (e) {
+      debugPrint('❌ Firebase Invoice Error (by company): $e');
       return [];
     }
   }
@@ -729,8 +752,8 @@ class FirebaseService {
       // Add new items
       for (var item in invoice.items) {
         await itemsRef.add({
-          'product_id': item.product.id.toString(), // SQLite uyumlu snake_case
-          'productName': item.product.name,
+          'product_id': item.product?.id ?? '', // SQLite uyumlu snake_case
+          'productName': item.product?.name ?? '',
           'quantity': item.quantity,
           'unitPrice': item.unitPrice,
           'discountRate': item.discountRate,

@@ -193,11 +193,16 @@ class InvoicePreviewScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: Row(
                   children: [
-                    Expanded(flex: 3, child: Text(item.product.name)),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        item.productName ?? item.product?.name ?? 'Ürün',
+                      ),
+                    ),
                     Expanded(
                       flex: 1,
                       child: Text(
-                        '${TextFormatter.formatQuantity(item.quantity)} ${item.product.unit}',
+                        '${TextFormatter.formatQuantity(item.quantity)} ${item.product?.unit ?? 'adet'}',
                       ),
                     ),
                     Expanded(

@@ -444,7 +444,9 @@ class InvoiceDetailScreen extends StatelessWidget {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        item.product.name,
+                                        item.productName ??
+                                            item.product?.name ??
+                                            'Ürün',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
@@ -477,7 +479,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                                         textAlign: TextAlign.center,
                                       ),
                                       Text(
-                                        item.product.unit,
+                                        item.product?.unit ?? 'adet',
                                         style: const TextStyle(
                                           fontSize: 12,
                                           color: Colors.grey,

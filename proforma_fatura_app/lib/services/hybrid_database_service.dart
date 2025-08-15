@@ -57,7 +57,7 @@ class HybridDatabaseService {
     String path = join(await getDatabasesPath(), 'proforma_fatura_hybrid.db');
     return await openDatabase(
       path,
-      version: 11, // Company-scoped products + unique index updates
+      version: 12, // Added company_id to invoices table
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -146,7 +146,8 @@ class HybridDatabaseService {
         firebase_synced INTEGER DEFAULT 0,
         last_sync_time TEXT,
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-        FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE CASCADE
+        FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE CASCADE,
+        company_id TEXT
       )
     ''');
     // Benzersiz fatura numarası (kullanıcı + fatura no)
@@ -174,61 +175,6 @@ class HybridDatabaseService {
         FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
       )
     ''');
-    Future<int> insertInvoice(Invoice invoice) async {
-      final db = await database;
-      final now = DateTime.now().toIso8601String();
-      final currentUserId = await _getCurrentSQLiteUserId();
-
-      final invoiceMap = invoice.toMap();
-      invoiceMap['created_at'] = now;
-      invoiceMap['updated_at'] = now;
-      invoiceMap['firebase_synced'] = 0;
-      invoiceMap['user_id'] = currentUserId;
-
-      final invoiceId = await db.insert('invoices', invoiceMap);
-
-      // Kalemler
-      for (var item in invoice.items) {
-        final itemMap = item.toMap();
-        itemMap['invoice_id'] = invoiceId;
-        itemMap['created_at'] = now;
-        itemMap['updated_at'] = now;
-        itemMap['firebase_synced'] = 0;
-        await db.insert('invoice_items', itemMap);
-      }
-
-      // Detay tabloların varlığını bir daha garanti et (idempotent)
-      await _ensureInvoiceDetailTables();
-
-      // UI'dan gelen seçimleri yakala (farklı alan adlarını tolere ediyoruz)
-      try {
-        final dynamic dyn = invoice;
-        final List<dynamic>? selections =
-            (dyn as dynamic).termSelections as List<dynamic>? ??
-            (dyn as dynamic).details as List<dynamic>? ??
-            (dyn as dynamic).extraTerms as List<dynamic>?;
-
-        if (selections != null && selections.isNotEmpty) {
-          await _insertInvoiceTermSelections(db, invoiceId, selections);
-        }
-      } catch (e) {
-        debugPrint(
-          '⚠️ Fatura detay seçimleri eklenemedi (fatura yine de kaydedildi): $e',
-        );
-      }
-
-      await _addToSyncLog('invoices', invoiceId, 'INSERT');
-
-      if (_isOnline) {
-        // Fire and forget - don't block the UI
-        _syncInvoiceToFirebase(invoiceId).catchError((error) {
-          debugPrint('❌ Invoice Firebase sync error: $error');
-          // Don't crash the app - just log the error
-        });
-      }
-
-      return invoiceId;
-    }
 
     // Şirket bilgileri tablosu
     await db.execute('''
@@ -335,6 +281,10 @@ class HybridDatabaseService {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_products_company_id ON products(company_id)',
+    );
+    // Create index for invoices company_id
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_invoices_company_id ON invoices(company_id)',
     );
   }
 
@@ -504,6 +454,17 @@ class HybridDatabaseService {
       );
     }
 
+    if (oldVersion < 12) {
+      // Add company_id to invoices table
+      try {
+        await db.execute('ALTER TABLE invoices ADD COLUMN company_id TEXT');
+      } catch (_) {}
+      // Create index for invoices company_id
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_invoices_company_id ON invoices(company_id)',
+      );
+    }
+
     // deleted_records tablosu bazı sürümlerde eksik olabilir - garanti altına al
     try {
       await db.execute('''
@@ -566,13 +527,13 @@ class HybridDatabaseService {
     if (_debounceSync?.isActive == true) {
       _debounceSync!.cancel();
     }
-    
+
     // Prevent duplicate syncs
     if (_isSyncInProgress) {
       debugPrint('⚠️ Sync already in progress, skipping immediate sync');
       return;
     }
-    
+
     _debounceSync = Timer(const Duration(milliseconds: 500), () {
       // Safety check to prevent crashes if service is disposed
       if (_syncTimer != null && !_isSyncInProgress) {
@@ -968,7 +929,7 @@ class HybridDatabaseService {
 
     final invoiceId = await db.insert('invoices', invoiceMap);
 
-    // Insert invoice items
+    // Kalemler
     for (var item in invoice.items) {
       final itemMap = item.toMap();
       itemMap['invoice_id'] = invoiceId;
@@ -976,6 +937,26 @@ class HybridDatabaseService {
       itemMap['updated_at'] = now;
       itemMap['firebase_synced'] = 0;
       await db.insert('invoice_items', itemMap);
+    }
+
+    // Detay tabloların varlığını bir daha garanti et (idempotent)
+    await _ensureInvoiceDetailTables();
+
+    // UI'dan gelen seçimleri yakala (farklı alan adlarını tolere ediyoruz)
+    try {
+      final dynamic dyn = invoice;
+      final List<dynamic>? selections =
+          (dyn as dynamic).termSelections as List<dynamic>? ??
+          (dyn as dynamic).details as List<dynamic>? ??
+          (dyn as dynamic).extraTerms as List<dynamic>?;
+
+      if (selections != null && selections.isNotEmpty) {
+        await _insertInvoiceTermSelections(db, invoiceId, selections);
+      }
+    } catch (e) {
+      debugPrint(
+        '⚠️ Fatura detay seçimleri eklenemedi (fatura yine de kaydedildi): $e',
+      );
     }
 
     await _addToSyncLog('invoices', invoiceId, 'INSERT');
@@ -1098,7 +1079,7 @@ class HybridDatabaseService {
         debugPrint('⚠️ Operation already pending: $operationKey');
         return;
       }
-      
+
       final db = await database;
       await db.insert('sync_log', {
         'table_name': tableName,
@@ -1124,10 +1105,12 @@ class HybridDatabaseService {
 
   Future<void> _performFullSync() async {
     if (!_isOnline || _isSyncInProgress) {
-      debugPrint('⚠️ Sync skipped: online=$_isOnline, inProgress=$_isSyncInProgress');
+      debugPrint(
+        '⚠️ Sync skipped: online=$_isOnline, inProgress=$_isSyncInProgress',
+      );
       return;
     }
-    
+
     // Safety check to prevent crashes if service is disposed
     if (_syncTimer == null) {
       debugPrint('⚠️ Service disposed, skipping sync');
@@ -1136,19 +1119,23 @@ class HybridDatabaseService {
 
     _isSyncInProgress = true;
     debugPrint('🔄 Starting full sync...');
-    
+
     try {
+      debugPrint('🔄 Step 1: Syncing pending operations...');
       await _syncPendingOperations();
+
       if (_pullEnabled) {
+        debugPrint('🔄 Step 2: Pulling from Firebase...');
         await _pullFromFirebase();
       }
+
       debugPrint('✅ Full sync completed successfully');
     } catch (e) {
       debugPrint('❌ Full sync error: $e');
       // Don't crash the app, just log the error
     } finally {
       _isSyncInProgress = false;
-      debugPrint('🔄 Full sync finished');
+      debugPrint('🔄 Sync status reset: inProgress=false');
     }
   }
 
@@ -1166,7 +1153,39 @@ class HybridDatabaseService {
     );
 
     if (pendingOps.isEmpty) {
-      debugPrint('📝 No pending sync operations');
+      debugPrint('📝 No pending sync operations found in sync_log table');
+
+      // Check if we need to create sync operations for existing unsynced records
+      debugPrint(
+        '🔍 Checking for unsynced records that need sync operations...',
+      );
+
+      final unsyncedCustomers = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM customers WHERE firebase_synced = 0',
+      );
+      final unsyncedProducts = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM products WHERE firebase_synced = 0',
+      );
+      final unsyncedInvoices = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM invoices WHERE firebase_synced = 0',
+      );
+
+      final totalUnsynced =
+          (unsyncedCustomers.first['count'] as int) +
+          (unsyncedProducts.first['count'] as int) +
+          (unsyncedInvoices.first['count'] as int);
+
+      if (totalUnsynced > 0) {
+        debugPrint(
+          '📝 Found $totalUnsynced unsynced records, creating sync operations...',
+        );
+
+        // Create sync operations for unsynced records
+        await _createSyncOperationsForUnsyncedRecords();
+      } else {
+        debugPrint('✅ All records are already synced');
+      }
+
       return;
     }
 
@@ -1174,9 +1193,10 @@ class HybridDatabaseService {
 
     for (var op in pendingOps) {
       try {
-        final operationKey = '${op['table_name']}:${op['record_id']}:${op['operation']}';
+        final operationKey =
+            '${op['table_name']}:${op['record_id']}:${op['operation']}';
         debugPrint('🔄 Processing: $operationKey');
-        
+
         await _processSyncOperation(op);
 
         // Mark as synced
@@ -1186,27 +1206,13 @@ class HybridDatabaseService {
           where: 'id = ?',
           whereArgs: [op['id']],
         );
-        
-        // Remove from pending operations
-        _pendingSyncOperations.remove(operationKey);
-        debugPrint('✅ Completed: $operationKey');
-        
+
+        debugPrint('✅ Operation synced: $operationKey');
       } catch (e) {
-        debugPrint('❌ Sync operation failed: ${op['table_name']}:${op['record_id']}:${op['operation']} - $e');
-        
-        // Update error message
-        await db.update(
-          'sync_log',
-          {'error_message': e.toString()},
-          where: 'id = ?',
-          whereArgs: [op['id']],
-        );
-        
-        // Don't crash the app, continue with next operation
+        debugPrint('❌ Error processing operation ${op['id']}: $e');
+        // Continue with next operation
       }
     }
-    
-    debugPrint('🔄 Finished processing pending sync operations');
   }
 
   Future<void> _processSyncOperation(Map<String, dynamic> operation) async {
@@ -1241,30 +1247,86 @@ class HybridDatabaseService {
 
   // Firebase sync methods
   Future<void> _syncCustomerToFirebase(int customerId) async {
-    final customer = await getCustomerById(customerId);
-    if (customer != null) {
-      // Eğer zaten uzak tarafta varsa, tekrar ekleme
-      String? firebaseId = customer.firebaseId;
-      firebaseId ??= await _firebaseService.findExistingCustomerId(
-        email: customer.email,
-        phone: customer.phone,
-        taxNumber: customer.taxNumber,
-        name: customer.name,
-      );
-      firebaseId ??= await _firebaseService.addCustomer(customer);
-      if (firebaseId != null) {
+    try {
+      final customer = await getCustomerById(customerId);
+      if (customer != null) {
         final db = await database;
-        await db.update(
-          'customers',
-          {
-            'firebase_id': firebaseId,
-            'firebase_synced': 1,
-            'last_sync_time': DateTime.now().toIso8601String(),
-          },
-          where: 'id = ?',
-          whereArgs: [customerId],
-        );
+
+        // Check if this Firebase ID already exists in another record
+        String? firebaseId = customer.firebaseId;
+
+        if (firebaseId == null || firebaseId.isEmpty) {
+          // Try to find existing customer by email/phone/name
+          firebaseId = await _firebaseService.findExistingCustomerId(
+            email: customer.email,
+            phone: customer.phone,
+            taxNumber: customer.taxNumber,
+            name: customer.name,
+          );
+
+          if (firebaseId == null) {
+            // Create new customer in Firebase
+            firebaseId = await _firebaseService.addCustomer(customer);
+          }
+        }
+
+        if (firebaseId != null && firebaseId.isNotEmpty) {
+          // Check if this Firebase ID already exists in another record
+          final existingRecord = await db.query(
+            'customers',
+            where: 'firebase_id = ? AND id != ?',
+            whereArgs: [firebaseId, customerId],
+          );
+
+          if (existingRecord.isNotEmpty) {
+            // Merge records - update the existing record with current data
+            debugPrint(
+              '🔄 Merging duplicate customer records for Firebase ID: $firebaseId',
+            );
+
+            final existingId = existingRecord.first['id'] as int;
+            final customerMap = customer.toMap();
+            customerMap.remove('id');
+            customerMap['firebase_id'] = firebaseId;
+            customerMap['firebase_synced'] = 1;
+            customerMap['last_sync_time'] = DateTime.now().toIso8601String();
+
+            // Update the existing record
+            await db.update(
+              'customers',
+              customerMap,
+              where: 'id = ?',
+              whereArgs: [existingId],
+            );
+
+            // Delete the duplicate record
+            await db.delete(
+              'customers',
+              where: 'id = ?',
+              whereArgs: [customerId],
+            );
+
+            debugPrint('✅ Customer records merged successfully');
+          } else {
+            // Update current record with Firebase ID
+            await db.update(
+              'customers',
+              {
+                'firebase_id': firebaseId,
+                'firebase_synced': 1,
+                'last_sync_time': DateTime.now().toIso8601String(),
+              },
+              where: 'id = ?',
+              whereArgs: [customerId],
+            );
+
+            debugPrint('✅ Customer synced to Firebase: $firebaseId');
+          }
+        }
       }
+    } catch (e) {
+      debugPrint('❌ Error syncing customer to Firebase: $e');
+      // Don't crash the app, just log the error
     }
   }
 
@@ -1329,28 +1391,106 @@ class HybridDatabaseService {
   }
 
   Future<void> _syncProductToFirebase(int productId) async {
-    final product = await getProductById(productId);
-    if (product != null) {
-      // Önce var mı bak, yoksa ekle
-      String? firebaseId = product.id;
-      firebaseId ??= await _firebaseService.findExistingProductId(
-        name: product.name,
-        companyId: product.companyId,
-      );
-      firebaseId ??= await _firebaseService.addProduct(product);
-      if (firebaseId != null) {
+    debugPrint('🔄 _syncProductToFirebase called for product ID: $productId');
+    try {
+      final product = await getProductById(productId);
+      if (product != null) {
+        debugPrint('📦 Product found: ${product.name} (ID: ${product.id})');
         final db = await database;
-        await db.update(
-          'products',
-          {
-            'firebase_id': firebaseId,
-            'firebase_synced': 1,
-            'last_sync_time': DateTime.now().toIso8601String(),
-          },
-          where: 'id = ?',
-          whereArgs: [productId],
-        );
+
+        // Check if this Firebase ID already exists in another record
+        String? firebaseId = product.id;
+        debugPrint('🔍 Current Firebase ID: $firebaseId');
+
+        if (firebaseId == null ||
+            firebaseId.isEmpty ||
+            IdConverter.isValidSQLiteId(IdConverter.stringToInt(firebaseId))) {
+          debugPrint(
+            '🔄 Product needs new Firebase ID, searching for existing...',
+          );
+          // Try to find existing product by name and company
+          firebaseId = await _firebaseService.findExistingProductId(
+            name: product.name,
+            companyId: product.companyId,
+          );
+
+          if (firebaseId == null) {
+            debugPrint(
+              '🆕 No existing product found, creating new in Firebase...',
+            );
+            // Create new product in Firebase
+            firebaseId = await _firebaseService.addProduct(product);
+            debugPrint('✅ Product created in Firebase with ID: $firebaseId');
+          } else {
+            debugPrint(
+              '🔍 Existing product found in Firebase with ID: $firebaseId',
+            );
+          }
+        }
+
+        if (firebaseId != null && firebaseId.isNotEmpty) {
+          debugPrint('🔄 Processing Firebase ID: $firebaseId');
+          // Check if this Firebase ID already exists in another record
+          final existingRecord = await db.query(
+            'products',
+            where: 'firebase_id = ? AND id != ?',
+            whereArgs: [firebaseId, productId],
+          );
+
+          if (existingRecord.isNotEmpty) {
+            // Merge records - update the existing record with current data
+            debugPrint(
+              '🔄 Merging duplicate product records for Firebase ID: $firebaseId',
+            );
+
+            final existingId = existingRecord.first['id'] as int;
+            final productMap = product.toMap();
+            productMap.remove('id');
+            productMap['firebase_id'] = firebaseId;
+            productMap['firebase_synced'] = 1;
+            productMap['last_sync_time'] = DateTime.now().toIso8601String();
+
+            // Update the existing record
+            await db.update(
+              'products',
+              productMap,
+              where: 'id = ?',
+              whereArgs: [existingId],
+            );
+
+            // Delete the duplicate record
+            await db.delete(
+              'products',
+              where: 'id = ?',
+              whereArgs: [productId],
+            );
+
+            debugPrint('✅ Product records merged successfully');
+          } else {
+            // Update current record with Firebase ID
+            debugPrint('🔄 Updating product with Firebase ID: $firebaseId');
+            await db.update(
+              'products',
+              {
+                'firebase_id': firebaseId,
+                'firebase_synced': 1,
+                'last_sync_time': DateTime.now().toIso8601String(),
+              },
+              where: 'id = ?',
+              whereArgs: [productId],
+            );
+
+            debugPrint('✅ Product synced to Firebase: $firebaseId');
+          }
+        } else {
+          debugPrint('❌ Failed to get Firebase ID for product');
+        }
+      } else {
+        debugPrint('❌ Product not found for ID: $productId');
       }
+    } catch (e) {
+      debugPrint('❌ Error syncing product to Firebase: $e');
+      // Don't crash the app, just log the error
     }
   }
 
@@ -1376,29 +1516,84 @@ class HybridDatabaseService {
   }
 
   Future<void> _syncInvoiceToFirebase(int invoiceId) async {
-    final invoices = await getAllInvoices();
-    final invoice = invoices.firstWhere(
-      (i) => i.id == invoiceId.toString(),
-      orElse: () => throw Exception('Invoice not found'),
-    );
-    // Önce var mı bak, yoksa ekle
-    String? firebaseId = invoice.id;
-    firebaseId ??= await _firebaseService.findExistingInvoiceId(
-      invoiceNumber: invoice.invoiceNumber,
-    );
-    firebaseId ??= await _firebaseService.addInvoice(invoice);
-    if (firebaseId != null) {
-      final db = await database;
-      await db.update(
-        'invoices',
-        {
-          'firebase_id': firebaseId,
-          'firebase_synced': 1,
-          'last_sync_time': DateTime.now().toIso8601String(),
-        },
-        where: 'id = ?',
-        whereArgs: [invoiceId],
+    try {
+      final invoices = await getAllInvoices();
+      final invoice = invoices.firstWhere(
+        (i) => i.id == invoiceId.toString(),
+        orElse: () => throw Exception('Invoice not found'),
       );
+
+      final db = await database;
+
+      // Check if this Firebase ID already exists in another record
+      String? firebaseId = invoice.id;
+
+      if (firebaseId == null ||
+          firebaseId.isEmpty ||
+          IdConverter.isValidSQLiteId(IdConverter.stringToInt(firebaseId))) {
+        // Try to find existing invoice by invoice number
+        firebaseId = await _firebaseService.findExistingInvoiceId(
+          invoiceNumber: invoice.invoiceNumber,
+        );
+
+        if (firebaseId == null) {
+          // Create new invoice in Firebase
+          firebaseId = await _firebaseService.addInvoice(invoice);
+        }
+      }
+
+      if (firebaseId != null && firebaseId.isNotEmpty) {
+        // Check if this Firebase ID already exists in another record
+        final existingRecord = await db.query(
+          'invoices',
+          where: 'firebase_id = ? AND id != ?',
+          whereArgs: [firebaseId, invoiceId],
+        );
+
+        if (existingRecord.isNotEmpty) {
+          // Merge records - update the existing record with current data
+          debugPrint(
+            '🔄 Merging duplicate invoice records for Firebase ID: $firebaseId',
+          );
+
+          final existingId = existingRecord.first['id'] as int;
+          final invoiceMap = invoice.toMap();
+          invoiceMap.remove('id');
+          invoiceMap['firebase_id'] = firebaseId;
+          invoiceMap['firebase_synced'] = 1;
+          invoiceMap['last_sync_time'] = DateTime.now().toIso8601String();
+
+          // Update the existing record
+          await db.update(
+            'invoices',
+            invoiceMap,
+            where: 'id = ?',
+            whereArgs: [existingId],
+          );
+
+          // Delete the duplicate record
+          await db.delete('invoices', where: 'id = ?', whereArgs: [invoiceId]);
+
+          debugPrint('✅ Invoice records merged successfully');
+        } else {
+          // Update current record with Firebase ID
+          await db.update(
+            'invoices',
+            {
+              'firebase_id': firebaseId,
+              'firebase_synced': 1,
+              'last_sync_time': DateTime.now().toIso8601String(),
+            },
+            where: 'id = ?',
+            whereArgs: [invoiceId],
+          );
+
+          debugPrint('✅ Invoice synced to Firebase: $firebaseId');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error syncing invoice to Firebase: $e');
+      // Don't crash the app, just log the error
     }
   }
 
@@ -1823,7 +2018,7 @@ class HybridDatabaseService {
   Future<Map<String, dynamic>> getSyncHealth() async {
     final stats = await getSyncStats();
     final totalPending = stats.values.reduce((a, b) => a + b);
-    
+
     return {
       'is_online': _isOnline,
       'is_sync_in_progress': _isSyncInProgress,
@@ -1840,14 +2035,13 @@ class HybridDatabaseService {
   Future<void> cleanupPendingOperations() async {
     debugPrint('🧹 Cleaning up pending sync operations...');
     _pendingSyncOperations.clear();
-    
+
     final db = await database;
-    await db.update(
-      'sync_log',
-      {'synced': 1, 'error_message': 'Cleaned up by user'},
-      where: 'synced = 0',
-    );
-    
+    await db.update('sync_log', {
+      'synced': 1,
+      'error_message': 'Cleaned up by user',
+    }, where: 'synced = 0');
+
     debugPrint('✅ Pending operations cleaned up');
   }
 
@@ -2170,5 +2364,113 @@ class HybridDatabaseService {
     ('LATE_FEE','Vade Farkı','Fatura tarihinden itibaren ödeme vadesini aşan ödemelere aylık %{value} vade farkı uygulanır.',1,'Vade Farkı (%)','%',8,1),
     ('VALID_DAYS','Geçerlilik Süresi','Teklifin geçerlilik süresi {value} iş günüdür.',1,'Gün','gün',3,1)
   ''');
+  }
+
+  /// Manual sync trigger for testing
+  Future<void> triggerManualSync() async {
+    debugPrint('🔄 HybridDatabaseService.triggerManualSync() called');
+    debugPrint('🔄 Manual sync triggered');
+    debugPrint(
+      '📊 Current status: online=$_isOnline, syncInProgress=$_isSyncInProgress',
+    );
+
+    if (!_isOnline) {
+      debugPrint('⚠️ Cannot sync: offline');
+      return;
+    }
+
+    try {
+      debugPrint('🔄 Starting manual sync...');
+
+      // Check current user
+      final currentUser = _firebaseService.currentUser;
+      debugPrint('👤 Current Firebase user: ${currentUser?.uid}');
+
+      if (currentUser == null) {
+        debugPrint('❌ No Firebase user found');
+        return;
+      }
+
+      // Check database connection
+      final db = await database;
+      debugPrint('🗄️ Database connected successfully');
+
+      // Clear pending operations to force fresh sync
+      debugPrint('🧹 Clearing pending operations for fresh sync...');
+      _pendingSyncOperations.clear();
+
+      // Check pending operations
+      final pendingOps = await db.query('sync_log', where: 'synced = 0');
+      debugPrint('📝 Pending sync operations: ${pendingOps.length}');
+
+      // Check unsynced records
+      final unsyncedCustomers = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM customers WHERE firebase_synced = 0',
+      );
+      final unsyncedProducts = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM products WHERE firebase_synced = 0',
+      );
+      final unsyncedInvoices = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM invoices WHERE firebase_synced = 0',
+      );
+
+      debugPrint(
+        '📊 Unsynced records: customers=${unsyncedCustomers.first['count']}, products=${unsyncedProducts.first['count']}, invoices=${unsyncedInvoices.first['count']}',
+      );
+
+      // Force sync all pending operations
+      debugPrint('🔄 Calling _performFullSync()...');
+      await _performFullSync();
+      debugPrint('✅ _performFullSync() completed');
+
+      debugPrint('✅ Manual sync completed');
+    } catch (e) {
+      debugPrint('❌ Manual sync error: $e');
+      rethrow;
+    }
+  }
+
+  /// Create sync operations for existing unsynced records
+  Future<void> _createSyncOperationsForUnsyncedRecords() async {
+    try {
+      final db = await database;
+      debugPrint('🔄 Creating sync operations for unsynced records...');
+
+      // Get unsynced customers
+      final unsyncedCustomers = await db.query(
+        'customers',
+        where: 'firebase_synced = 0',
+      );
+      for (var customer in unsyncedCustomers) {
+        await _addToSyncLog('customers', customer['id'] as int, 'insert');
+        debugPrint('📝 Added sync operation for customer: ${customer['id']}');
+      }
+
+      // Get unsynced products
+      final unsyncedProducts = await db.query(
+        'products',
+        where: 'firebase_synced = 0',
+      );
+      for (var product in unsyncedProducts) {
+        await _addToSyncLog('products', product['id'] as int, 'insert');
+        debugPrint('📝 Added sync operation for product: ${product['id']}');
+      }
+
+      // Get unsynced invoices
+      final unsyncedInvoices = await db.query(
+        'invoices',
+        where: 'firebase_synced = 0',
+      );
+      for (var invoice in unsyncedInvoices) {
+        await _addToSyncLog('invoices', invoice['id'] as int, 'insert');
+        debugPrint('📝 Added sync operation for invoice: ${invoice['id']}');
+      }
+
+      debugPrint(
+        '✅ Created sync operations for ${unsyncedCustomers.length + unsyncedProducts.length + unsyncedInvoices.length} records',
+      );
+    } catch (e) {
+      debugPrint('❌ Error creating sync operations: $e');
+    }
   }
 }

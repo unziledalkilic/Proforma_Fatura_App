@@ -136,7 +136,7 @@ class PdfService {
             pw.SizedBox(height: 15),
             // Ana başlık
             pw.Text(
-              'TEKLİF FATURASI',
+              'TEKLİF FORMU',
               style: pw.TextStyle(
                 fontSize: 28,
                 fontWeight: pw.FontWeight.bold,
@@ -422,7 +422,7 @@ class PdfService {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                item.product.name,
+                item.productName ?? item.product?.name ?? 'Ürün',
                 style: pw.TextStyle(
                   fontSize: 11,
                   fontWeight: pw.FontWeight.bold,
@@ -430,10 +430,10 @@ class PdfService {
                   font: fontBold,
                 ),
               ),
-              if (item.product.description != null &&
-                  item.product.description!.isNotEmpty)
+              if ((item.productName ?? item.product?.description) != null &&
+                  (item.productName ?? item.product?.description)!.isNotEmpty)
                 pw.Text(
-                  item.product.description!,
+                  item.productName ?? item.product?.description ?? '',
                   style: pw.TextStyle(
                     fontSize: 9,
                     color: PdfColors.grey600,
@@ -446,7 +446,7 @@ class PdfService {
         pw.Padding(
           padding: const pw.EdgeInsets.all(12),
           child: pw.Text(
-            '${item.quantity.toStringAsFixed(0)} ${item.product.unit}',
+            '${item.quantity.toStringAsFixed(0)} ${item.product?.unit ?? 'adet'}',
             style: pw.TextStyle(
               fontSize: 11,
               color: PdfColors.black,

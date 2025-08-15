@@ -198,7 +198,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     // Debug: Mevcut ürünlerin invoiceId'lerini kontrol et
     for (int i = 0; i < invoice.items.length; i++) {
       debugPrint(
-        '  Mevcut ürün $i: ${invoice.items[i].product.name}, InvoiceId: ${invoice.items[i].invoiceId}',
+        '  Mevcut ürün $i: ${invoice.items[i].productName ?? invoice.items[i].product?.name ?? 'Ürün'}, InvoiceId: ${invoice.items[i].invoiceId}',
       );
     }
   }
@@ -423,7 +423,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         // Debug: Her ürünün invoiceId'sini kontrol et
         for (int i = 0; i < _invoiceItems.length; i++) {
           debugPrint(
-            '  Ürün $i: ${_invoiceItems[i].product.name}, InvoiceId: ${_invoiceItems[i].invoiceId}',
+            '  Ürün $i: ${_invoiceItems[i].productName ?? _invoiceItems[i].product?.name ?? 'Ürün'}, InvoiceId: ${_invoiceItems[i].invoiceId}',
           );
         }
 
@@ -1221,7 +1221,9 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                                 CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                item.product.name,
+                                                item.productName ??
+                                                    item.product?.name ??
+                                                    'Ürün',
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
                                                 ),
@@ -1241,7 +1243,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                         ),
                                         Expanded(
                                           child: Text(
-                                            '${item.quantity} ${item.product.unit}',
+                                            '${item.quantity} ${item.product?.unit ?? 'adet'}',
                                             textAlign: TextAlign.center,
                                           ),
                                         ),

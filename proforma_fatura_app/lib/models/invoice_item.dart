@@ -3,22 +3,28 @@ import 'product.dart';
 class InvoiceItem {
   final String? id;
   final String? invoiceId; // Opsiyonel yapıldı, fatura kaydedilirken atanacak
-  final Product product;
+  final Product? product; // Opsiyonel yapıldı, Firebase'den gelen veriler için
+  final String? productName; // Firebase uyumluluğu için
+  final String? description; // Firebase uyumluluğu için
   final double quantity;
   final double unitPrice;
   final double? discountRate; // İskonto oranı (%)
   final double? taxRate; // KDV oranı (%)
   final String? notes;
+  final double? total; // Firebase uyumluluğu için
 
   InvoiceItem({
     this.id,
     this.invoiceId, // Opsiyonel yapıldı
-    required this.product,
+    this.product,
+    this.productName,
+    this.description,
     required this.quantity,
     required this.unitPrice,
     this.discountRate,
     this.taxRate,
     this.notes,
+    this.total,
   });
 
   // Ara toplam (indirim öncesi)
@@ -46,7 +52,7 @@ class InvoiceItem {
     return {
       'id': id,
       'invoice_id': invoiceId, // SQLite için snake_case
-      'product_id': product.id, // SQLite için snake_case
+      'product_id': product?.id, // SQLite için snake_case
       'quantity': quantity,
       'unit_price': unitPrice, // SQLite için snake_case
       'discount_rate': discountRate, // SQLite için snake_case
@@ -57,16 +63,19 @@ class InvoiceItem {
     };
   }
 
-  factory InvoiceItem.fromMap(Map<String, dynamic> map, Product product) {
+  factory InvoiceItem.fromMap(Map<String, dynamic> map, [Product? product]) {
     return InvoiceItem(
       id: map['id']?.toString(),
       invoiceId: map['invoice_id']?.toString() ?? map['invoiceId']?.toString(),
       product: product,
+      productName: map['productName']?.toString(),
+      description: map['description']?.toString(),
       quantity: (map['quantity'] ?? 0.0).toDouble(),
       unitPrice: (map['unit_price'] ?? map['unitPrice'] ?? 0.0).toDouble(),
       discountRate: (map['discount_rate'] ?? map['discountRate'])?.toDouble(),
       taxRate: (map['tax_rate'] ?? map['taxRate'])?.toDouble(),
       notes: map['notes'],
+      total: (map['total'] ?? 0.0).toDouble(),
     );
   }
 
@@ -74,21 +83,27 @@ class InvoiceItem {
     String? id,
     String? invoiceId,
     Product? product,
+    String? productName,
+    String? description,
     double? quantity,
     double? unitPrice,
     double? discountRate,
     double? taxRate,
     String? notes,
+    double? total,
   }) {
     return InvoiceItem(
       id: id ?? this.id,
       invoiceId: invoiceId ?? this.invoiceId,
       product: product ?? this.product,
+      productName: productName ?? this.productName,
+      description: description ?? this.description,
       quantity: quantity ?? this.quantity,
       unitPrice: unitPrice ?? this.unitPrice,
       discountRate: discountRate ?? this.discountRate,
       taxRate: taxRate ?? this.taxRate,
       notes: notes ?? this.notes,
+      total: total ?? this.total,
     );
   }
 }

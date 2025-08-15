@@ -282,7 +282,7 @@ class InvoicePreviewWidget extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  item.product.name,
+                  item.productName ?? item.product?.name ?? 'Ürün',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
@@ -297,7 +297,7 @@ class InvoicePreviewWidget extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${TextFormatter.formatQuantity(item.quantity)} ${item.product.unit} x ₺${item.unitPrice.toStringAsFixed(2)}',
+            '${TextFormatter.formatQuantity(item.quantity)} ${item.product?.unit ?? 'adet'} x ₺${item.unitPrice.toStringAsFixed(2)}',
             style: AppConstants.captionStyle,
           ),
           if (item.discountRate != null && item.discountRate! > 0) ...[

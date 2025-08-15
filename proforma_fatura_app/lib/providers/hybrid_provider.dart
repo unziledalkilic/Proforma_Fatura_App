@@ -202,18 +202,33 @@ class HybridProvider extends ChangeNotifier {
 
   // ==================== CUSTOMER OPERATIONS ====================
 
+  /// Manual sync trigger for testing
+  Future<void> triggerManualSync() async {
+    debugPrint('🔄 HybridProvider.triggerManualSync() called');
+    try {
+      debugPrint('🔄 Calling _hybridService.triggerManualSync()...');
+      await _hybridService.triggerManualSync();
+      debugPrint('✅ _hybridService.triggerManualSync() completed');
+      notifyListeners();
+      debugPrint('✅ notifyListeners() called');
+    } catch (e) {
+      debugPrint('❌ Manual sync error: $e');
+      _setError('Manuel senkronizasyon hatası: $e');
+    }
+  }
+
   Future<bool> addCustomer(Customer customer) async {
     _setLoading(true);
     try {
       // Add to local database first (works offline)
       final currentUserId = await _hybridService.getCurrentLocalUserId();
       debugPrint('🔍 Adding customer with local user ID: $currentUserId');
-      
+
       if (currentUserId <= 0) {
         _setError('Geçersiz kullanıcı ID: $currentUserId');
         return false;
       }
-      
+
       final enriched = customer.copyWith(userId: currentUserId.toString());
       final customerId = await _hybridService.insertCustomer(enriched);
 
@@ -767,13 +782,13 @@ class HybridProvider extends ChangeNotifier {
     try {
       final userId = _appUser?.id;
       debugPrint('🔍 Müşteriler SQLite\'dan yükleniyor... UserID: $userId');
-      
+
       // Safety check to prevent crashes if appUser is null
       if (userId == null) {
         debugPrint('⚠️ User ID is null, skipping customer load');
         return;
       }
-      
+
       final customers = await _hybridService.getAllCustomers(userId: userId);
       _customers = _dedupCustomers(customers);
       debugPrint('✅ SQLite\'dan ${_customers.length} müşteri yüklendi');
@@ -784,17 +799,77 @@ class HybridProvider extends ChangeNotifier {
     }
   }
 
+  /// Load products from local database
   Future<void> _loadProductsFromLocal() async {
     try {
       final userId = _appUser?.id;
       debugPrint('🔍 Ürünler SQLite\'dan yükleniyor... UserID: $userId');
+
+      // Safety check to prevent crashes if appUser is null
+      if (userId == null) {
+        debugPrint('⚠️ User ID is null, skipping product load');
+        return;
+      }
+
       final products = await _hybridService.getAllProducts(userId: userId);
-      _products = _dedupProducts(products);
-      debugPrint('✅ SQLite\'dan ${_products.length} ürün yüklendi');
+      _products = products;
+      debugPrint('✅ SQLite\'dan ${products.length} ürün yüklendi');
       notifyListeners();
     } catch (e) {
-      debugPrint('❌ Ürün yükleme hatası: $e');
-      _setError('Ürünler yüklenemedi: $e');
+      debugPrint('❌ Error loading products from local: $e');
+      _setError('Ürünler yüklenirken hata: $e');
+    }
+  }
+
+  /// Load products for specific company from local database
+  Future<void> loadProductsForCompany(String companyId) async {
+    try {
+      final userId = _appUser?.id;
+      debugPrint(
+        '🔍 Şirket ürünleri SQLite\'dan yükleniyor... UserID: $userId, CompanyID: $companyId',
+      );
+
+      // Safety check to prevent crashes if appUser is null
+      if (userId == null) {
+        debugPrint('⚠️ User ID is null, skipping company product load');
+        return;
+      }
+
+      final allProducts = await _hybridService.getAllProducts(userId: userId);
+      _products = allProducts
+          .where((product) => product.companyId == companyId)
+          .toList();
+      debugPrint('✅ SQLite\'dan ${_products.length} şirket ürünü yüklendi');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error loading company products from local: $e');
+      _setError('Şirket ürünleri yüklenirken hata: $e');
+    }
+  }
+
+  /// Load invoices for specific company from local database
+  Future<void> loadInvoicesForCompany(String companyId) async {
+    try {
+      final userId = _appUser?.id;
+      debugPrint(
+        '🔍 Şirket faturaları SQLite\'dan yükleniyor... UserID: $userId, CompanyID: $companyId',
+      );
+
+      // Safety check to prevent crashes if appUser is null
+      if (userId == null) {
+        debugPrint('⚠️ User ID is null, skipping company invoice load');
+        return;
+      }
+
+      final allInvoices = await _hybridService.getAllInvoices(userId: userId);
+      _invoices = allInvoices
+          .where((invoice) => invoice.companyId == companyId)
+          .toList();
+      debugPrint('✅ SQLite\'dan ${_invoices.length} şirket fatura yüklendi');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error loading company invoices from local: $e');
+      _setError('Şirket faturaları yüklenirken hata: $e');
     }
   }
 

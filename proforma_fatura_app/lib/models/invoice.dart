@@ -3,6 +3,7 @@ import 'invoice_item.dart';
 
 class Invoice {
   final String? id;
+  final String? userId; // Kullanıcı ID'si
   final String invoiceNumber;
   final Customer customer;
   final DateTime invoiceDate;
@@ -11,11 +12,13 @@ class Invoice {
   final String? notes;
   final String? terms;
   final double? discountRate; // Genel iskonto oranı (%)
+  final String? companyId; // Şirket ID'si
   final DateTime createdAt;
   final DateTime updatedAt;
 
   Invoice({
     this.id,
+    this.userId,
     required this.invoiceNumber,
     required this.customer,
     required this.invoiceDate,
@@ -24,6 +27,7 @@ class Invoice {
     this.notes,
     this.terms,
     this.discountRate,
+    this.companyId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -56,6 +60,7 @@ class Invoice {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'user_id': userId, // SQLite için snake_case
       'invoice_number': invoiceNumber, // SQLite için snake_case
       'customer_id': customer.id, // SQLite için snake_case
       'invoice_date': invoiceDate.toIso8601String(), // SQLite için snake_case
@@ -63,6 +68,7 @@ class Invoice {
       'notes': notes,
       'terms': terms,
       'discount_rate': discountRate, // SQLite için snake_case
+      'company_id': companyId, // SQLite için snake_case
       'created_at': createdAt.toIso8601String(), // SQLite için snake_case
       'updated_at': updatedAt.toIso8601String(), // SQLite için snake_case
     };
@@ -75,6 +81,7 @@ class Invoice {
   ) {
     return Invoice(
       id: map['id']?.toString(),
+      userId: map['user_id']?.toString() ?? map['userId']?.toString(),
       invoiceNumber: map['invoice_number'] ?? map['invoiceNumber'] ?? '',
       customer: customer,
       invoiceDate: DateTime.parse(
@@ -89,6 +96,7 @@ class Invoice {
       notes: map['notes'],
       terms: map['terms'],
       discountRate: (map['discount_rate'] ?? map['discountRate'])?.toDouble(),
+      companyId: map['company_id']?.toString() ?? map['companyId']?.toString(),
       createdAt: DateTime.parse(
         map['created_at'] ??
             map['createdAt'] ??
@@ -103,7 +111,8 @@ class Invoice {
   }
 
   Invoice copyWith({
-    int? id,
+    String? id,
+    String? userId,
     String? invoiceNumber,
     Customer? customer,
     DateTime? invoiceDate,
@@ -112,11 +121,13 @@ class Invoice {
     String? notes,
     String? terms,
     double? discountRate,
+    String? companyId,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return Invoice(
-      id: id?.toString() ?? this.id,
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
       invoiceNumber: invoiceNumber ?? this.invoiceNumber,
       customer: customer ?? this.customer,
       invoiceDate: invoiceDate ?? this.invoiceDate,
@@ -125,6 +136,7 @@ class Invoice {
       notes: notes ?? this.notes,
       terms: terms ?? this.terms,
       discountRate: discountRate ?? this.discountRate,
+      companyId: companyId ?? this.companyId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
