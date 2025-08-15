@@ -54,6 +54,22 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   final Map<int, double?> _termValues = {}; // term_id -> sayı (gerekiyorsa)
   final Set<int> _selectedTermIds = <int>{}; // seçili term_id'ler
 
+  // Para birimi sembolü getir
+  String _getCurrencySymbol(String currency) {
+    switch (currency.toUpperCase()) {
+      case 'TRY':
+        return '₺';
+      case 'USD':
+        return '\$';
+      case 'EUR':
+        return '€';
+      case 'GBP':
+        return '£';
+      default:
+        return currency;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1004,7 +1020,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                       return DropdownMenuItem<Product>(
                                         value: product,
                                         child: Text(
-                                          '${product.name} (₺${product.price.toStringAsFixed(2)})',
+                                          '${product.name} (${_getCurrencySymbol(product.currency)}${product.price.toStringAsFixed(2)})',
                                         ),
                                       );
                                     }).toList();
@@ -1015,6 +1031,40 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
                               // Ürün Detayları
                               if (_selectedProduct != null) ...[
+                                // Seçili ürün para birimi göstergesi
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.blue.withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.currency_exchange,
+                                        size: 16,
+                                        color: Colors.blue[700],
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Para Birimi: ${_selectedProduct!.currency} (${_getCurrencySymbol(_selectedProduct!.currency)})',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.blue[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
                                 Row(
                                   children: [
                                     Expanded(
@@ -1034,10 +1084,21 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                     Expanded(
                                       child: TextFormField(
                                         controller: _unitPriceController,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Birim Fiyat (₺) *',
+                                        decoration: InputDecoration(
+                                          labelText: 'Birim Fiyat *',
                                           border: OutlineInputBorder(),
-                                          prefixIcon: Icon(Icons.attach_money),
+                                          prefixIcon: Icon(
+                                            _selectedProduct?.currency == 'USD'
+                                                ? Icons.attach_money
+                                                : _selectedProduct?.currency ==
+                                                      'EUR'
+                                                ? Icons.euro
+                                                : _selectedProduct?.currency ==
+                                                      'GBP'
+                                                ? Icons.currency_pound
+                                                : Icons.currency_lira,
+                                            color: Colors.grey[600],
+                                          ),
                                         ),
                                         keyboardType: TextInputType.number,
                                       ),
@@ -1052,7 +1113,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                       child: TextFormField(
                                         controller: _discountRateController,
                                         decoration: const InputDecoration(
-                                          labelText: 'İndirim Oranı (%)',
+                                          labelText: 'İskonto Oranı (%)',
                                           border: OutlineInputBorder(),
                                           prefixIcon: Icon(Icons.discount),
                                           suffixText: '%',
@@ -1231,7 +1292,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
                                     children: [
-                                      const Text('Toplam İndirim:'),
+                                      const Text('Toplam İskonto:'),
                                       Text(
                                         '-₺${_calculateTotalDiscount().toStringAsFixed(2)}',
                                         style: const TextStyle(

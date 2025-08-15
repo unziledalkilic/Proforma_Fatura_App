@@ -248,7 +248,7 @@ class InvoicePreviewScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'İndirim (%${TextFormatter.formatPercent(invoice.discountRate)}):',
+                    'İskonto (%${TextFormatter.formatPercent(invoice.discountRate)}):',
                   ),
                   Text('-₺${discountAmount.toStringAsFixed(2)}'),
                 ],

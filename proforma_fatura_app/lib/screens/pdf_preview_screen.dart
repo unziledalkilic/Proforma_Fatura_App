@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import 'package:printing/printing.dart';
 import '../constants/app_constants.dart';
 import '../models/invoice.dart';
 import '../services/pdf_service.dart';
@@ -58,6 +59,11 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
         _isGenerating = false;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   Future<void> _downloadPdf() async {
@@ -281,53 +287,22 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   }
 
   Widget _buildPdfPreview() {
-    // PDF önizleme için basit bir placeholder
-    // Gerçek uygulamada flutter_pdfview paketi kullanılabilir
-    return Container(
-      color: Colors.grey[100],
-      child: Column(
+    final path = _pdfPath;
+    if (path == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return PdfPreview(
+      canChangePageFormat: false,
+      canChangeOrientation: false,
+      allowPrinting: false,
+      allowSharing: false,
+      build: (format) async => File(path).readAsBytes(),
+      loadingWidget: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.picture_as_pdf,
-            size: 64,
-            color: AppConstants.primaryColor,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Proforma Fatura',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppConstants.primaryColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.invoice.invoiceNumber,
-            style: const TextStyle(fontSize: 16, color: Colors.grey),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppConstants.primaryColor,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text(
-              'PDF Önizleme',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'PDF dosyası başarıyla oluşturuldu.\nİndirmek için aşağıdaki butonu kullanın.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, fontSize: 14),
-          ),
+        children: const [
+          CircularProgressIndicator(),
+          SizedBox(height: 12),
+          Text('PDF yükleniyor...'),
         ],
       ),
     );

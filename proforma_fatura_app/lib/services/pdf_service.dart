@@ -365,7 +365,7 @@ class PdfService {
           0: pw.FlexColumnWidth(3), // Ürün adı
           1: pw.FlexColumnWidth(1), // Miktar
           2: pw.FlexColumnWidth(1.2), // Birim fiyat
-          3: pw.FlexColumnWidth(1), // İndirim
+          3: pw.FlexColumnWidth(1), // İskonto
           4: pw.FlexColumnWidth(1), // KDV
           5: pw.FlexColumnWidth(1.2), // Toplam
         },
@@ -383,7 +383,7 @@ class PdfService {
               _buildTableHeader('Ürün/Hizmet', fontBold),
               _buildTableHeader('Miktar', fontBold),
               _buildTableHeader('Birim Fiyat', fontBold),
-              _buildTableHeader('İndirim', fontBold),
+              _buildTableHeader('İskonto', fontBold),
               _buildTableHeader('KDV', fontBold),
               _buildTableHeader('Toplam', fontBold),
             ],
@@ -539,7 +539,7 @@ class PdfService {
       child: pw.Column(
         children: [
           _buildTotalRow('Ara Toplam', subtotal, font, fontBold),
-          _buildTotalRow('Toplam İndirim', totalDiscount, font, fontBold),
+          _buildTotalRow('Toplam İskonto', totalDiscount, font, fontBold),
           _buildTotalRow('Toplam KDV', totalTax, font, fontBold),
           pw.Divider(color: PdfColors.grey400, thickness: 1),
           _buildTotalRow(

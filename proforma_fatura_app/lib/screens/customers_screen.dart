@@ -18,13 +18,6 @@ class CustomersScreen extends StatefulWidget {
 class _CustomersScreenState extends State<CustomersScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Customer> _filteredCustomers = [];
-  String _selectedCategory = 'Tümü';
-  final List<String> _categories = [
-    'Tümü',
-    'Son Eklenenler',
-    'E-posta Var',
-    'Telefon Var',
-  ];
 
   @override
   void initState() {
@@ -45,25 +38,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
     setState(() {
       _filteredCustomers = hybridProvider.searchCustomers(query);
     });
-  }
-
-  List<Customer> _getCategorizedCustomers(List<Customer> customers) {
-    switch (_selectedCategory) {
-      case 'Son Eklenenler':
-        final sortedCustomers = List<Customer>.from(customers);
-        sortedCustomers.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return sortedCustomers.take(10).toList();
-      case 'E-posta Var':
-        return customers
-            .where((c) => c.email != null && c.email!.isNotEmpty)
-            .toList();
-      case 'Telefon Var':
-        return customers
-            .where((c) => c.phone != null && c.phone!.isNotEmpty)
-            .toList();
-      default:
-        return customers;
-    }
   }
 
   @override
@@ -108,93 +82,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   onChanged: _filterCustomers,
                 ),
               ),
-
-              // İstatistikler ve Kategori Filtreleri
-              if (!hybridProvider.isLoading &&
-                  hybridProvider.error == null) ...[
-                // Hızlı İstatistikler
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppConstants.paddingMedium,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          'Toplam',
-                          hybridProvider.customers.length.toString(),
-                          Icons.people,
-                          AppConstants.infoColor,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildStatCard(
-                          'E-posta',
-                          hybridProvider.customers
-                              .where(
-                                (c) => c.email != null && c.email!.isNotEmpty,
-                              )
-                              .length
-                              .toString(),
-                          Icons.email,
-                          AppConstants.successColor,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildStatCard(
-                          'Telefon',
-                          hybridProvider.customers
-                              .where(
-                                (c) => c.phone != null && c.phone!.isNotEmpty,
-                              )
-                              .length
-                              .toString(),
-                          Icons.phone,
-                          AppConstants.warningColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Kategori Filtreleri
-                SizedBox(
-                  height: 40,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppConstants.paddingMedium,
-                    ),
-                    itemCount: _categories.length,
-                    itemBuilder: (context, index) {
-                      final category = _categories[index];
-                      final isSelected = _selectedCategory == category;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          label: Text(category),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedCategory = category;
-                            });
-                          },
-                          backgroundColor: Colors.grey[100],
-                          selectedColor: AppConstants.primaryColor.withOpacity(
-                            0.2,
-                          ),
-                          checkmarkColor: AppConstants.primaryColor,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
 
               // Müşteri listesi
               Expanded(child: _buildCustomersList(hybridProvider)),
@@ -256,9 +143,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
     List<Customer> customers;
     if (_searchController.text.isEmpty) {
-      customers = _getCategorizedCustomers(hybridProvider.customers);
+      customers = hybridProvider.customers;
     } else {
-      customers = _getCategorizedCustomers(_filteredCustomers);
+      customers = _filteredCustomers;
     }
 
     if (customers.isEmpty) {
@@ -292,51 +179,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
         final customer = customers[index];
         return _buildCustomerCard(customer);
       },
-    );
-  }
-
-  Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppConstants.surfaceColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppConstants.borderLight),
-        boxShadow: [
-          BoxShadow(
-            color: AppConstants.textTertiary.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppConstants.textPrimary,
-            ),
-          ),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppConstants.textSecondary,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -391,7 +233,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const AddCustomerScreen(),
+                              builder: (context) => AddCustomerScreen(customer: customer),
                             ),
                           );
                           if (result == true && mounted) {

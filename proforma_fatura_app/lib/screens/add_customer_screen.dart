@@ -6,7 +6,9 @@ import '../utils/text_formatter.dart';
 import '../constants/app_constants.dart';
 
 class AddCustomerScreen extends StatefulWidget {
-  const AddCustomerScreen({super.key});
+  final Customer? customer; // Düzenleme modu için mevcut müşteri
+
+  const AddCustomerScreen({super.key, this.customer});
 
   @override
   State<AddCustomerScreen> createState() => _AddCustomerScreenState();
@@ -20,6 +22,26 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
   final _addressController = TextEditingController();
   final _taxNumberController = TextEditingController();
   bool _isLoading = false;
+  bool _isEditMode = false; // Düzenleme modu kontrolü
+
+  @override
+  void initState() {
+    super.initState();
+    _isEditMode = widget.customer != null;
+    
+    // Düzenleme modu ise mevcut verileri yükle
+    if (_isEditMode && widget.customer != null) {
+      _loadCustomerData(widget.customer!);
+    }
+  }
+
+  void _loadCustomerData(Customer customer) {
+    _nameController.text = customer.name;
+    _emailController.text = customer.email ?? '';
+    _phoneController.text = customer.phone ?? '';
+    _addressController.text = customer.address ?? '';
+    _taxNumberController.text = customer.taxNumber ?? '';
+  }
 
   @override
   void dispose() {
@@ -39,35 +61,69 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
     });
 
     try {
-      final customer = Customer(
-        name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-        address: _addressController.text.trim(),
-        taxNumber: _taxNumberController.text.trim(),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      final success = await context.read<HybridProvider>().addCustomer(
-        customer,
-      );
-
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Müşteri başarıyla eklendi'),
-            backgroundColor: Colors.green,
-          ),
+      if (_isEditMode) {
+        // Düzenleme modu - mevcut müşteriyi güncelle
+        final updatedCustomer = widget.customer!.copyWith(
+          name: _nameController.text.trim(),
+          email: _emailController.text.trim(),
+          phone: _phoneController.text.trim(),
+          address: _addressController.text.trim(),
+          taxNumber: _taxNumberController.text.trim(),
+          updatedAt: DateTime.now(),
         );
-        Navigator.pop(context);
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Müşteri eklenirken hata oluştu'),
-            backgroundColor: Colors.red,
-          ),
+
+        final success = await context.read<HybridProvider>().updateCustomer(
+          updatedCustomer,
         );
+
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Müşteri başarıyla güncellendi'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context, true);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Müşteri güncellenirken hata oluştu'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else {
+        // Yeni müşteri ekleme modu
+        final customer = Customer(
+          name: _nameController.text.trim(),
+          email: _emailController.text.trim(),
+          phone: _phoneController.text.trim(),
+          address: _addressController.text.trim(),
+          taxNumber: _taxNumberController.text.trim(),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        final success = await context.read<HybridProvider>().addCustomer(
+          customer,
+        );
+
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Müşteri başarıyla eklendi'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context, true);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Müşteri eklenirken hata oluştu'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -88,7 +144,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Yeni Müşteri'),
+        title: Text(_isEditMode ? 'Müşteri Düzenle' : 'Yeni Müşteri'),
         backgroundColor: AppConstants.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -261,8 +317,8 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Müşteriyi Kaydet',
+                      : Text(
+                          _isEditMode ? 'Müşteriyi Güncelle' : 'Müşteriyi Kaydet',
                           style: AppConstants.buttonStyle,
                         ),
                 ),

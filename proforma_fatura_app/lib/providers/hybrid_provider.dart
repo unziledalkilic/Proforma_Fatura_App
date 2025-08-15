@@ -207,19 +207,28 @@ class HybridProvider extends ChangeNotifier {
     try {
       // Add to local database first (works offline)
       final currentUserId = await _hybridService.getCurrentLocalUserId();
+      debugPrint('🔍 Adding customer with local user ID: $currentUserId');
+      
+      if (currentUserId <= 0) {
+        _setError('Geçersiz kullanıcı ID: $currentUserId');
+        return false;
+      }
+      
       final enriched = customer.copyWith(userId: currentUserId.toString());
       final customerId = await _hybridService.insertCustomer(enriched);
 
       if (customerId > 0) {
+        debugPrint('✅ Customer added successfully with ID: $customerId');
         // Reload customers from local database
         await _loadCustomersFromLocal();
         _setError(null);
         return true;
       } else {
-        _setError('Müşteri eklenemedi');
+        _setError('Müşteri eklenemedi - veritabanı hatası');
         return false;
       }
     } catch (e) {
+      debugPrint('❌ Customer addition error: $e');
       _setError('Müşteri ekleme hatası: $e');
       return false;
     } finally {
@@ -758,6 +767,13 @@ class HybridProvider extends ChangeNotifier {
     try {
       final userId = _appUser?.id;
       debugPrint('🔍 Müşteriler SQLite\'dan yükleniyor... UserID: $userId');
+      
+      // Safety check to prevent crashes if appUser is null
+      if (userId == null) {
+        debugPrint('⚠️ User ID is null, skipping customer load');
+        return;
+      }
+      
       final customers = await _hybridService.getAllCustomers(userId: userId);
       _customers = _dedupCustomers(customers);
       debugPrint('✅ SQLite\'dan ${_customers.length} müşteri yüklendi');

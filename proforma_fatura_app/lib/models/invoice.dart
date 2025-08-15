@@ -10,7 +10,7 @@ class Invoice {
   final List<InvoiceItem> items;
   final String? notes;
   final String? terms;
-  final double? discountRate; // Genel indirim oranı (%)
+  final double? discountRate; // Genel iskonto oranı (%)
   final DateTime createdAt;
   final DateTime updatedAt;
 

@@ -6,7 +6,7 @@ class InvoiceItem {
   final Product product;
   final double quantity;
   final double unitPrice;
-  final double? discountRate; // İndirim oranı (%)
+  final double? discountRate; // İskonto oranı (%)
   final double? taxRate; // KDV oranı (%)
   final String? notes;
 

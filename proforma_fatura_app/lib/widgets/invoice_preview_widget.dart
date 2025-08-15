@@ -159,7 +159,7 @@ class InvoicePreviewWidget extends StatelessWidget {
                       if (invoice.discountRate != null &&
                           invoice.discountRate! > 0)
                         _buildTotalRow(
-                          'İndirim (%${invoice.discountRate!.toStringAsFixed(1)})',
+                          'İskonto (%${invoice.discountRate!.toStringAsFixed(1)})',
                           -invoice.discountAmount,
                           isDiscount: true,
                         ),
@@ -303,7 +303,7 @@ class InvoicePreviewWidget extends StatelessWidget {
           if (item.discountRate != null && item.discountRate! > 0) ...[
             const SizedBox(height: 2),
             Text(
-              'İndirim: %${TextFormatter.formatPercent(item.discountRate)}',
+              'İskonto: %${TextFormatter.formatPercent(item.discountRate)}',
               style: AppConstants.captionStyle.copyWith(color: Colors.green),
             ),
           ],

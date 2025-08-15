@@ -512,7 +512,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                                             ),
                                           ),
                                           child: Text(
-                                            'İndirim: %${TextFormatter.formatPercent(item.discountRate)}',
+                                            'İskonto: %${TextFormatter.formatPercent(item.discountRate)}',
                                             style: const TextStyle(
                                               fontSize: 10,
                                               color: Colors.green,
@@ -587,7 +587,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                                     if (item.discountRate != null &&
                                         item.discountRate! > 0)
                                       Text(
-                                        'İndirim: -₺${item.discountAmount.toStringAsFixed(2)}',
+                                        'İskonto: -₺${item.discountAmount.toStringAsFixed(2)}',
                                         style: const TextStyle(
                                           fontSize: 12,
                                           color: Colors.green,
@@ -642,7 +642,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'İndirim (%${invoice.discountRate!.toStringAsFixed(1)}):',
+                                  'İskonto (%${invoice.discountRate!.toStringAsFixed(1)}):',
                                   style: const TextStyle(color: Colors.green),
                                 ),
                                 Text(
